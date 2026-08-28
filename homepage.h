@@ -25,7 +25,7 @@ extern int gameState; // Shared variable declared in main.cpp
 
 // ---------------- RENDER ----------------
 inline void renderHomepage() {
-	
+
 
 	// Load the 4 button PNGs ONCE the first time this runs, not every frame.
 	// Rename these filenames to match whatever your actual PNG files are called.

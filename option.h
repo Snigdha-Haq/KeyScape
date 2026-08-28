@@ -10,21 +10,21 @@ extern int gameState; // shared variable from main.cpp
 
 inline void renderOptionPage() {
 	static int optionBgImg = -1, backBtnImg = -1;
-	// bg load 1 time
+	// bg load 1st time
 	if (optionBgImg == -1) {
 		optionBgImg = iLoadImage("Image/options_bg.png");
-		backBtnImg = iLoadImage("Image/backbutton.png");   
+		backBtnImg = iLoadImage("Image/backbutton.png");
 	}
 	// bg image
 	iShowImage(0, 0, 1000, 600, optionBgImg);
 
 
-	iSetColor(255, 255, 255);
+	/*iSetColor(255, 255, 255);
 	iText(350, 230, "Arrow Keys   : Movement", GLUT_BITMAP_HELVETICA_18);
 	iText(350, 180, "A                    : Light Attack", GLUT_BITMAP_HELVETICA_18);
 	iText(350, 130, "S                    : Heavy Attack", GLUT_BITMAP_HELVETICA_18);
 	iText(350, 80, "Space            : Jump / Build Bridge", GLUT_BITMAP_HELVETICA_18);
-	iText(350, 30, "P                    : Drop Bridge", GLUT_BITMAP_HELVETICA_18);
+	iText(350, 30, "P                    : Drop Bridge", GLUT_BITMAP_HELVETICA_18);*/
 	//iSetColor(0, 0, 0);
 	//iText(750, 50, "Back", GLUT_BITMAP_HELVETICA_18);
 	// Back Button render

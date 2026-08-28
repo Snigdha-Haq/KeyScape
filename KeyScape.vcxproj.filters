@@ -32,5 +32,8 @@
     <ClInclude Include="playbutton.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Level2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

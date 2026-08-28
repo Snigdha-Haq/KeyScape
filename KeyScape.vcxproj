@@ -67,6 +67,7 @@
   <ItemGroup>
     <ClInclude Include="homepage.h" />
     <ClInclude Include="Level1.h" />
+    <ClInclude Include="Level2.h" />
     <ClInclude Include="option.h" />
     <ClInclude Include="playbutton.h" />
   </ItemGroup>
