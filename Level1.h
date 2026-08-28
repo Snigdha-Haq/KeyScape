@@ -19,7 +19,8 @@ static int level1_playerSpeed = 5;
 // Background sliding position
 static int level1_bgX = 0;
 static int level1_distanceCovered = 0;
-#define TARGET_DISTANCE 1500 // Run 1500 pixels to make doors appear
+#define TARGET_DISTANCE 1500 // Run this far in total to make doors appear
+#define COMBAT_TRIGGER_DISTANCE (TARGET_DISTANCE / 2) // Enemy appears halfway there
 
 // Animation
 static bool level1_isMoving = false;
@@ -32,19 +33,21 @@ static int level1_energy = 100;
 static bool level1_gameOver = false;
 static bool level1_keyFound = false;
 
-// ---------------- ENEMY (drawn with iGraphics primitives) ----------------
-static int level1_enemyX = 600, level1_enemyY = 80;
-static int level1_enemyWidth = 80, level1_enemyHeight = 130;
-static int level1_enemyHealth = 100;
-static bool level1_enemyEncountered = false; // becomes true once player reaches the enemy
-static bool level1_enemyDefeated = false;
-static int level1_enemyAttackTimer = 0;
+// Result page - shown right after clicking a door
+static bool level1_resultPage = false;
 
-#define ENEMY_TRIGGER_DISTANCE 800   // player must run this far before the enemy blocks the path
-#define ENEMY_MAX_HEALTH 100
-#define ENEMY_ATTACK_DAMAGE 10
-#define ENEMY_ATTACK_DELAY 60        // frames between enemy attacks (~1.2s at 20ms timer)
-#define PLAYER_ATTACK_DAMAGE 20      // damage dealt per SPACE press
+// ---------------- COMBAT ----------------
+#define ENEMY_MAX_ENERGY      100
+#define PLAYER_ATTACK_DAMAGE  15   // how much you deal per SPACE press
+#define ENEMY_ATTACK_DAMAGE   10   // how much the enemy deals per hit
+#define ATTACK_COOLDOWN_FRAMES 15  // prevents holding SPACE from spamming
+#define ENEMY_ATTACK_INTERVAL  45  // enemy attacks roughly every 45 fixedUpdate ticks
+
+static bool level1_combatActive = false; // true while the fight screen is showing
+static bool level1_combatDone = false;   // true once this enemy has been beaten (so it can't retrigger)
+static int level1_enemyEnergy = ENEMY_MAX_ENERGY;
+static int level1_attackCooldown = 0;
+static int level1_enemyAttackTimer = 0;
 
 // Doors
 struct Level1Door {
@@ -61,7 +64,7 @@ struct Level1Door {
 static Level1Door level1_doors[3];
 static int level1_correctPath;
 static int level1_chosenPath = -1;
-static bool level1_doorsVisible = false; // Simple toggle
+static bool level1_doorsVisible = false;
 
 inline void setupLevel1()
 {
@@ -77,6 +80,7 @@ inline void setupLevel1()
 	level1_bgX = 0;
 	level1_distanceCovered = 0;
 	level1_doorsVisible = false;
+	level1_resultPage = false;
 
 	level1_energy = 100;
 	level1_keyFound = false;
@@ -86,11 +90,24 @@ inline void setupLevel1()
 	level1_animFrame = 0;
 	level1_animTimer = 0;
 
-	// Reset enemy
-	level1_enemyHealth = ENEMY_MAX_HEALTH;
-	level1_enemyEncountered = false;
-	level1_enemyDefeated = false;
+	level1_combatActive = false;
+	level1_combatDone = false;
+	level1_enemyEnergy = ENEMY_MAX_ENERGY;
+	level1_attackCooldown = 0;
 	level1_enemyAttackTimer = 0;
+}
+
+// The energy bar is drawn the same way on every page, so it lives
+// in its own function instead of being copy-pasted everywhere.
+inline void level1_drawEnergyBar()
+{
+	iSetColor(200, 200, 200);
+	iFilledRectangle(20, SCREEN_HEIGHT - 40, 200, 20);
+	iSetColor(0, 200, 0);
+	iFilledRectangle(20, SCREEN_HEIGHT - 40, 2 * level1_energy, 20);
+	iSetColor(0, 0, 0);
+	iRectangle(20, SCREEN_HEIGHT - 40, 200, 20);
+	iText(20, SCREEN_HEIGHT - 55, "Energy");
 }
 
 inline void renderLevel1()
@@ -113,84 +130,127 @@ inline void renderLevel1()
 		runFrames[7] = iLoadImage("Image/run_8.png");
 	}
 
-	// 1. Draw 2 seamless backgrounds sliding left
+	// ---------------- RESULT PAGE (after a door click) ----------------
+	if (level1_resultPage) {
+		iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, desertBg);
+
+		int bigW = 300, bigH = 450;
+		iShowImage(SCREEN_WIDTH / 2 - bigW / 2, 80, bigW, bigH, doorOpenImg);
+
+		iSetColor(0, 0, 0);
+		if (level1_keyFound) {
+			iText(SCREEN_WIDTH / 2 - 110, 550, "KEY FOUND! Level complete!");
+		}
+		else if (level1_gameOver) {
+			iText(SCREEN_WIDTH / 2 - 130, 550, "GAME OVER - Press R to restart");
+		}
+		else {
+			iText(SCREEN_WIDTH / 2 - 160, 550, "Nothing here... an enemy attacked! -40 Energy");
+			iText(SCREEN_WIDTH / 2 - 110, 40, "Click anywhere to go back");
+		}
+
+		level1_drawEnergyBar();
+		return;
+	}
+
+	// ---------------- COMBAT SCREEN ----------------
+	if (level1_combatActive) {
+		// Static background, no scrolling during the fight
+		iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, desertBg);
+
+		// Player on the left
+		iShowImage(150, 80, level1_playerWidth, level1_playerHeight, idleImg);
+
+		// Enemy on the right - TODO: replace this placeholder box with a
+		// real enemy sprite the same way you did for the player/doors:
+		//   static int enemyImg = -1;
+		//   if (enemyImg == -1) enemyImg = iLoadImage("Image/enemy.png");
+		//   iShowImage(SCREEN_WIDTH - 300, 80, 150, 180, enemyImg);
+		iSetColor(150, 30, 30);
+		iFilledRectangle(SCREEN_WIDTH - 300, 80, 150, 180);
+		iSetColor(0, 0, 0);
+		iRectangle(SCREEN_WIDTH - 300, 80, 150, 180);
+		iText(SCREEN_WIDTH - 270, 250, "ENEMY");
+
+		// Player energy bar (bottom-left, same as always)
+		level1_drawEnergyBar();
+
+		// Enemy energy bar (top-right, mirrored style)
+		iSetColor(200, 200, 200);
+		iFilledRectangle(SCREEN_WIDTH - 220, SCREEN_HEIGHT - 40, 200, 20);
+		iSetColor(200, 0, 0);
+		iFilledRectangle(SCREEN_WIDTH - 220, SCREEN_HEIGHT - 40, 2 * level1_enemyEnergy, 20);
+		iSetColor(0, 0, 0);
+		iRectangle(SCREEN_WIDTH - 220, SCREEN_HEIGHT - 40, 200, 20);
+		iText(SCREEN_WIDTH - 220, SCREEN_HEIGHT - 55, "Enemy");
+
+		iSetColor(0, 0, 0);
+		iText(SCREEN_WIDTH / 2 - 100, 30, "Press SPACE to attack!");
+		return;
+	}
+
+	// ---------------- NORMAL SCREEN (running or door screen) ----------------
 	iShowImage(level1_bgX, 0, SCREEN_WIDTH, SCREEN_HEIGHT, desertBg);
 	iShowImage(level1_bgX + SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, desertBg);
+	iShowImage(level1_bgX - SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, desertBg);
 
-	// 2. Draw Player
 	int playerImg = level1_isMoving ? runFrames[level1_animFrame] : idleImg;
 	iShowImage(level1_playerX, level1_playerY, level1_playerWidth, level1_playerHeight, playerImg);
 
-	// 3. Draw Enemy (plain iGraphics shapes, no image asset needed)
-	if (level1_enemyEncountered && !level1_enemyDefeated) {
-		// body
-		iSetColor(120, 0, 0);
-		iFilledRectangle(level1_enemyX, level1_enemyY, level1_enemyWidth, level1_enemyHeight - 35);
-		// arms
-		iSetColor(90, 0, 0);
-		iFilledRectangle(level1_enemyX - 12, level1_enemyY + 40, 12, 50);
-		iFilledRectangle(level1_enemyX + level1_enemyWidth, level1_enemyY + 40, 12, 50);
-		// head
-		iSetColor(200, 30, 30);
-		iFilledCircle(level1_enemyX + level1_enemyWidth / 2, level1_enemyY + level1_enemyHeight - 15, 22);
-		// angry eyes
-		iSetColor(255, 255, 0);
-		iFilledCircle(level1_enemyX + level1_enemyWidth / 2 - 8, level1_enemyY + level1_enemyHeight - 15, 3);
-		iFilledCircle(level1_enemyX + level1_enemyWidth / 2 + 8, level1_enemyY + level1_enemyHeight - 15, 3);
-
-		// enemy health bar
-		int barW = level1_enemyWidth + 20;
-		iSetColor(200, 200, 200);
-		iFilledRectangle(level1_enemyX - 10, level1_enemyY + level1_enemyHeight + 10, barW, 12);
-		iSetColor(255, 0, 0);
-		iFilledRectangle(level1_enemyX - 10, level1_enemyY + level1_enemyHeight + 10, barW * level1_enemyHealth / ENEMY_MAX_HEALTH, 12);
-		iSetColor(0, 0, 0);
-		iRectangle(level1_enemyX - 10, level1_enemyY + level1_enemyHeight + 10, barW, 12);
-	}
-
-	// 4. Draw Doors only when player has run far enough
 	if (level1_doorsVisible) {
 		for (int i = 0; i < 3; i++) {
 			int imgToUse = level1_doors[i].visited ? doorOpenImg : doorClosedImg;
 			iShowImage(level1_doors[i].x, level1_doors[i].y, level1_doors[i].width, level1_doors[i].height, imgToUse);
-
-			if (i == level1_chosenPath && level1_keyFound) {
-				iSetColor(255, 215, 0);
-				iText(level1_doors[i].x + 30, level1_doors[i].y + level1_doors[i].height + 10, "KEY!");
-			}
 		}
 	}
 
-	// 5. Energy Bar & Instructions
-	iSetColor(200, 200, 200);
-	iFilledRectangle(20, SCREEN_HEIGHT - 40, 200, 20);
-	iSetColor(0, 200, 0);
-	iFilledRectangle(20, SCREEN_HEIGHT - 40, 2 * level1_energy, 20);
-	iSetColor(0, 0, 0);
-	iRectangle(20, SCREEN_HEIGHT - 40, 200, 20);
-	iText(20, SCREEN_HEIGHT - 55, "Energy");
+	level1_drawEnergyBar();
 
 	iSetColor(0, 0, 0);
-	if (level1_enemyEncountered && !level1_enemyDefeated && !level1_gameOver) {
-		iText(SCREEN_WIDTH / 2 - 130, SCREEN_HEIGHT - 40, "ENEMY! Press SPACE to attack!");
-	}
-	else if (!level1_doorsVisible) {
-		iText(SCREEN_WIDTH / 2 - 100, SCREEN_HEIGHT - 40, "Hold RIGHT ARROW to run!");
+	if (!level1_doorsVisible) {
+		iText(SCREEN_WIDTH / 2 - 130, SCREEN_HEIGHT - 40, "Hold RIGHT to run, LEFT to go back");
 	}
 	else if (!level1_gameOver && !level1_keyFound) {
 		iText(SCREEN_WIDTH / 2 - 90, SCREEN_HEIGHT - 40, "Click a door to open it");
 	}
-
-	if (level1_gameOver)
-		iText(SCREEN_WIDTH / 2 - 130, 300, "GAME OVER - Press R to restart");
-	else if (level1_keyFound)
-		iText(SCREEN_WIDTH / 2 - 110, 300, "KEY FOUND! Level complete!");
 }
 
 inline void level1_fixedUpdate()
 {
-	if (level1_gameOver || level1_keyFound) return;
+	if (level1_gameOver || level1_keyFound || level1_resultPage) return;
 
+	// ---------------- COMBAT LOGIC ----------------
+	if (level1_combatActive) {
+		if (level1_attackCooldown > 0) level1_attackCooldown--;
+
+		// Player attacks on SPACE, limited by cooldown
+		if (isKeyPressed(' ') && level1_attackCooldown <= 0) {
+			level1_enemyEnergy -= PLAYER_ATTACK_DAMAGE;
+			if (level1_enemyEnergy < 0) level1_enemyEnergy = 0;
+			level1_attackCooldown = ATTACK_COOLDOWN_FRAMES;
+		}
+
+		// Enemy attacks automatically on its own timer
+		level1_enemyAttackTimer++;
+		if (level1_enemyAttackTimer >= ENEMY_ATTACK_INTERVAL) {
+			level1_enemyAttackTimer = 0;
+			level1_energy -= ENEMY_ATTACK_DAMAGE;
+			if (level1_energy < 0) level1_energy = 0;
+		}
+
+		// Check outcome
+		if (level1_enemyEnergy <= 0) {
+			level1_combatActive = false;
+			level1_combatDone = true; // won't fight again this level
+		}
+		else if (level1_energy <= 0) {
+			level1_gameOver = true;
+		}
+
+		return; // skip running logic while fighting
+	}
+
+	// ---------------- RUNNING LOGIC ----------------
 	level1_isMoving = false;
 
 	// Enemy attacks the player automatically while the fight is ongoing
@@ -206,36 +266,44 @@ inline void level1_fixedUpdate()
 		}
 	}
 
-	// While doors haven't appeared, holding RIGHT scrolls the background smooth and endless
-	// Movement is blocked while an undefeated enemy is in front of the player
-	bool blockedByEnemy = level1_enemyEncountered && !level1_enemyDefeated;
+	if (!level1_doorsVisible) {
+		if (isSpecialKeyPressed(GLUT_KEY_RIGHT)) {
+			level1_isMoving = true;
 
-	if (!level1_doorsVisible && !blockedByEnemy && isSpecialKeyPressed(GLUT_KEY_RIGHT)) {
-		level1_isMoving = true;
+			level1_bgX -= level1_playerSpeed;
+			if (level1_bgX <= -SCREEN_WIDTH) {
+				level1_bgX = 0;
+			}
 
-		// Slide background left
-		level1_bgX -= level1_playerSpeed;
+			level1_distanceCovered += level1_playerSpeed;
 
-		// Loop background back when full width leaves screen
-		if (level1_bgX <= -SCREEN_WIDTH) {
-			level1_bgX = 0;
+			// Trigger the fight once, on the way to the doors
+			if (!level1_combatDone && level1_distanceCovered >= COMBAT_TRIGGER_DISTANCE) {
+				level1_combatActive = true;
+				level1_enemyEnergy = ENEMY_MAX_ENERGY;
+				level1_attackCooldown = 0;
+				level1_enemyAttackTimer = 0;
+			}
+
+			if (level1_distanceCovered >= TARGET_DISTANCE) {
+				level1_doorsVisible = true;
+			}
 		}
+		else if (isSpecialKeyPressed(GLUT_KEY_LEFT) && level1_distanceCovered > 0) {
+			level1_isMoving = true;
 
-		// Keep track of how far player ran
-		level1_distanceCovered += level1_playerSpeed;
+			level1_bgX += level1_playerSpeed;
+			if (level1_bgX >= SCREEN_WIDTH) {
+				level1_bgX = 0;
+			}
 
-		// Enemy blocks the path once the trigger distance is reached
-		if (!level1_enemyEncountered && level1_distanceCovered >= ENEMY_TRIGGER_DISTANCE) {
-			level1_enemyEncountered = true;
-		}
-
-		// When target distance is hit, stop scrolling and reveal doors!
-		if (level1_distanceCovered >= TARGET_DISTANCE) {
-			level1_doorsVisible = true;
+			level1_distanceCovered -= level1_playerSpeed;
+			if (level1_distanceCovered < 0) {
+				level1_distanceCovered = 0;
+			}
 		}
 	}
 
-	// Character Running Animation
 	if (level1_isMoving) {
 		level1_animTimer++;
 		if (level1_animTimer >= ANIM_FRAME_DELAY) {
@@ -256,12 +324,20 @@ inline bool level1_isInside(int px, int py, Level1Door d)
 
 inline void handleLevel1DoorClicks(int mx, int my)
 {
-	if (!level1_doorsVisible || level1_gameOver || level1_keyFound) return;
+	if (level1_gameOver || level1_keyFound) return;
+
+	if (level1_resultPage) {
+		level1_resultPage = false;
+		return;
+	}
+
+	if (!level1_doorsVisible) return;
 
 	for (int i = 0; i < 3; i++) {
 		if (!level1_doors[i].visited && level1_isInside(mx, my, level1_doors[i])) {
 			level1_doors[i].visited = true;
 			level1_chosenPath = i;
+			level1_resultPage = true;
 
 			if (i == level1_correctPath) {
 				level1_keyFound = true;
