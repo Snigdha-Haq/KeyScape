@@ -19,10 +19,10 @@ static int level1_playerSpeed = 5;
 // Background sliding position
 static int level1_bgX = 0;
 static int level1_distanceCovered = 0;
-#define TARGET_DISTANCE 1500 // Run this far in total to make doors appear
-#define COMBAT_TRIGGER_DISTANCE (TARGET_DISTANCE / 2) // Enemy appears halfway there
+#define TARGET_DISTANCE 1500
+#define COMBAT_TRIGGER_DISTANCE (TARGET_DISTANCE / 2)
 
-// Animation
+// Animation (running)
 static bool level1_isMoving = false;
 static int level1_animFrame = 0;
 static int level1_animTimer = 0;
@@ -33,21 +33,31 @@ static int level1_energy = 100;
 static bool level1_gameOver = false;
 static bool level1_keyFound = false;
 
-// Result page - shown right after clicking a door
+// Result page
 static bool level1_resultPage = false;
 
 // ---------------- COMBAT ----------------
-#define ENEMY_MAX_ENERGY      100
-#define PLAYER_ATTACK_DAMAGE  15   // how much you deal per SPACE press
-#define ENEMY_ATTACK_DAMAGE   10   // how much the enemy deals per hit
-#define ATTACK_COOLDOWN_FRAMES 15  // prevents holding SPACE from spamming
-#define ENEMY_ATTACK_INTERVAL  45  // enemy attacks roughly every 45 fixedUpdate ticks
+#define ENEMY_MAX_ENERGY       100
+#define KNIFE_DAMAGE            12   // SPACE attack
+#define SHOOT_DAMAGE             8   // F attack (weaker but check cooldown below)
+#define ENEMY_ATTACK_DAMAGE     10
+#define KNIFE_COOLDOWN_FRAMES    20
+#define SHOOT_COOLDOWN_FRAMES    12  // faster, so it deals decent damage over time too
+#define ENEMY_ATTACK_INTERVAL    60  // ticks between enemy hits
+#define ENEMY_TELEGRAPH_FRAMES   20  // tail starts glowing this many ticks before the hit
+#define PLAYER_ATTACK_FRAME_DELAY 3  // ticks per animation frame while swinging/shooting
 
-static bool level1_combatActive = false; // true while the fight screen is showing
-static bool level1_combatDone = false;   // true once this enemy has been beaten (so it can't retrigger)
+static bool level1_combatActive = false;
+static bool level1_combatDone = false;
 static int level1_enemyEnergy = ENEMY_MAX_ENERGY;
 static int level1_attackCooldown = 0;
 static int level1_enemyAttackTimer = 0;
+
+// Player attack animation state
+static bool level1_playerAttacking = false;
+static int level1_attackType = 0;      // 0 = knife (7 frames), 1 = shoot (3 frames)
+static int level1_attackAnimFrame = 0;
+static int level1_attackAnimTimer = 0;
 
 // Doors
 struct Level1Door {
@@ -95,10 +105,13 @@ inline void setupLevel1()
 	level1_enemyEnergy = ENEMY_MAX_ENERGY;
 	level1_attackCooldown = 0;
 	level1_enemyAttackTimer = 0;
+
+	level1_playerAttacking = false;
+	level1_attackType = 0;
+	level1_attackAnimFrame = 0;
+	level1_attackAnimTimer = 0;
 }
 
-// The energy bar is drawn the same way on every page, so it lives
-// in its own function instead of being copy-pasted everywhere.
 inline void level1_drawEnergyBar()
 {
 	iSetColor(200, 200, 200);
@@ -114,6 +127,10 @@ inline void renderLevel1()
 {
 	static int desertBg = -1, doorClosedImg = -1, doorOpenImg = -1, idleImg = -1;
 	static int runFrames[8];
+	static int knifeFrames[7];
+	static int shootFrames[3];
+	static int enemyIdleFrames[2];
+	static int enemyChargeFrames[2];
 
 	if (desertBg == -1) {
 		desertBg = iLoadImage("Image/desert1.png");
@@ -128,54 +145,76 @@ inline void renderLevel1()
 		runFrames[5] = iLoadImage("Image/run_6.png");
 		runFrames[6] = iLoadImage("Image/run_7.png");
 		runFrames[7] = iLoadImage("Image/run_8.png");
+
+		// TODO: save your 7 knife images with these exact filenames
+		knifeFrames[0] = iLoadImage("Image/knife_1.png");
+		knifeFrames[1] = iLoadImage("Image/knife_2.png");
+		knifeFrames[2] = iLoadImage("Image/knife_3.png");
+		knifeFrames[3] = iLoadImage("Image/knife_4.png");
+		knifeFrames[4] = iLoadImage("Image/knife_5.png");
+		knifeFrames[5] = iLoadImage("Image/knife_6.png");
+		knifeFrames[6] = iLoadImage("Image/knife_7.png");
+
+		// TODO: save your 3 shooting images with these exact filenames
+		shootFrames[0] = iLoadImage("Image/shoot_1.png");
+		shootFrames[1] = iLoadImage("Image/shoot_2.png");
+		shootFrames[2] = iLoadImage("Image/shoot_3.png");
+
+		// Enemy: images 1&2 (no glow) = idle, images 3&4 (glowing tail) = charging attack
+		enemyIdleFrames[0] = iLoadImage("Image/enemy_idle_1.png");
+		enemyIdleFrames[1] = iLoadImage("Image/enemy_idle_2.png");
+		enemyChargeFrames[0] = iLoadImage("Image/enemy_attack_1.png");
+		enemyChargeFrames[1] = iLoadImage("Image/enemy_attack_2.png");
 	}
 
-	// ---------------- RESULT PAGE (after a door click) ----------------
+	// ---------------- RESULT PAGE ----------------
 	if (level1_resultPage) {
 		iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, desertBg);
-
 		int bigW = 300, bigH = 450;
 		iShowImage(SCREEN_WIDTH / 2 - bigW / 2, 80, bigW, bigH, doorOpenImg);
 
 		iSetColor(0, 0, 0);
-		if (level1_keyFound) {
+		if (level1_keyFound)
 			iText(SCREEN_WIDTH / 2 - 110, 550, "KEY FOUND! Level complete!");
-		}
-		else if (level1_gameOver) {
+		else if (level1_gameOver)
 			iText(SCREEN_WIDTH / 2 - 130, 550, "GAME OVER - Press R to restart");
-		}
 		else {
 			iText(SCREEN_WIDTH / 2 - 160, 550, "Nothing here... an enemy attacked! -40 Energy");
 			iText(SCREEN_WIDTH / 2 - 110, 40, "Click anywhere to go back");
 		}
-
 		level1_drawEnergyBar();
 		return;
 	}
 
 	// ---------------- COMBAT SCREEN ----------------
 	if (level1_combatActive) {
-		// Static background, no scrolling during the fight
 		iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, desertBg);
 
-		// Player on the left
-		iShowImage(150, 80, level1_playerWidth, level1_playerHeight, idleImg);
+		// ---- Player: show the attack animation while mid-swing/shot, idle otherwise ----
+		int playerImg = idleImg;
+		if (level1_playerAttacking) {
+			if (level1_attackType == 0)
+				playerImg = knifeFrames[level1_attackAnimFrame];
+			else
+				playerImg = shootFrames[level1_attackAnimFrame];
+		}
+		iShowImage(150, 80, level1_playerWidth, level1_playerHeight, playerImg);
 
-		// Enemy on the right - TODO: replace this placeholder box with a
-		// real enemy sprite the same way you did for the player/doors:
-		//   static int enemyImg = -1;
-		//   if (enemyImg == -1) enemyImg = iLoadImage("Image/enemy.png");
-		//   iShowImage(SCREEN_WIDTH - 300, 80, 150, 180, enemyImg);
-		iSetColor(150, 30, 30);
-		iFilledRectangle(SCREEN_WIDTH - 300, 80, 150, 180);
-		iSetColor(0, 0, 0);
-		iRectangle(SCREEN_WIDTH - 300, 80, 150, 180);
-		iText(SCREEN_WIDTH - 270, 250, "ENEMY");
+		// ---- Enemy: idle blink normally, glowing charge frames right before it attacks ----
+		int ticksUntilAttack = ENEMY_ATTACK_INTERVAL - level1_enemyAttackTimer;
+		int enemyImg;
+		if (ticksUntilAttack <= ENEMY_TELEGRAPH_FRAMES) {
+			// Charging up - flicker faster between the two glow frames, feels more urgent
+			enemyImg = enemyChargeFrames[(level1_enemyAttackTimer / 5) % 2];
+		}
+		else {
+			// Calm idle blink, slower
+			enemyImg = enemyIdleFrames[(level1_enemyAttackTimer / 15) % 2];
+		}
+		iShowImage(SCREEN_WIDTH - 320, 80, 180, 210, enemyImg);
 
-		// Player energy bar (bottom-left, same as always)
 		level1_drawEnergyBar();
 
-		// Enemy energy bar (top-right, mirrored style)
 		iSetColor(200, 200, 200);
 		iFilledRectangle(SCREEN_WIDTH - 220, SCREEN_HEIGHT - 40, 200, 20);
 		iSetColor(200, 0, 0);
@@ -185,11 +224,15 @@ inline void renderLevel1()
 		iText(SCREEN_WIDTH - 220, SCREEN_HEIGHT - 55, "Enemy");
 
 		iSetColor(0, 0, 0);
-		iText(SCREEN_WIDTH / 2 - 100, 30, "Press SPACE to attack!");
+		iText(SCREEN_WIDTH / 2 - 150, 30, "SPACE = knife   |   F = shoot");
+		if (ticksUntilAttack <= ENEMY_TELEGRAPH_FRAMES) {
+			iSetColor(200, 0, 0);
+			iText(SCREEN_WIDTH - 300, 300, "Watch out!");
+		}
 		return;
 	}
 
-	// ---------------- NORMAL SCREEN (running or door screen) ----------------
+	// ---------------- NORMAL SCREEN (running / door screen) ----------------
 	iShowImage(level1_bgX, 0, SCREEN_WIDTH, SCREEN_HEIGHT, desertBg);
 	iShowImage(level1_bgX + SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, desertBg);
 	iShowImage(level1_bgX - SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, desertBg);
@@ -207,12 +250,10 @@ inline void renderLevel1()
 	level1_drawEnergyBar();
 
 	iSetColor(0, 0, 0);
-	if (!level1_doorsVisible) {
+	if (!level1_doorsVisible)
 		iText(SCREEN_WIDTH / 2 - 130, SCREEN_HEIGHT - 40, "Hold RIGHT to run, LEFT to go back");
-	}
-	else if (!level1_gameOver && !level1_keyFound) {
+	else if (!level1_gameOver && !level1_keyFound)
 		iText(SCREEN_WIDTH / 2 - 90, SCREEN_HEIGHT - 40, "Click a door to open it");
-	}
 }
 
 inline void level1_fixedUpdate()
@@ -223,11 +264,39 @@ inline void level1_fixedUpdate()
 	if (level1_combatActive) {
 		if (level1_attackCooldown > 0) level1_attackCooldown--;
 
-		// Player attacks on SPACE, limited by cooldown
-		if (isKeyPressed(' ') && level1_attackCooldown <= 0) {
-			level1_enemyEnergy -= PLAYER_ATTACK_DAMAGE;
+		// Advance the attack swing/shot animation if one is playing
+		if (level1_playerAttacking) {
+			level1_attackAnimTimer++;
+			if (level1_attackAnimTimer >= PLAYER_ATTACK_FRAME_DELAY) {
+				level1_attackAnimTimer = 0;
+				level1_attackAnimFrame++;
+				int maxFrames = (level1_attackType == 0) ? 7 : 3;
+				if (level1_attackAnimFrame >= maxFrames) {
+					level1_playerAttacking = false;
+					level1_attackAnimFrame = 0;
+				}
+			}
+		}
+
+		// Knife attack (SPACE)
+		if (isKeyPressed(' ') && level1_attackCooldown <= 0 && !level1_playerAttacking) {
+			level1_enemyEnergy -= KNIFE_DAMAGE;
 			if (level1_enemyEnergy < 0) level1_enemyEnergy = 0;
-			level1_attackCooldown = ATTACK_COOLDOWN_FRAMES;
+			level1_attackCooldown = KNIFE_COOLDOWN_FRAMES;
+			level1_playerAttacking = true;
+			level1_attackType = 0;
+			level1_attackAnimFrame = 0;
+			level1_attackAnimTimer = 0;
+		}
+		// Shoot attack (F)
+		else if ((isKeyPressed('f') || isKeyPressed('F')) && level1_attackCooldown <= 0 && !level1_playerAttacking) {
+			level1_enemyEnergy -= SHOOT_DAMAGE;
+			if (level1_enemyEnergy < 0) level1_enemyEnergy = 0;
+			level1_attackCooldown = SHOOT_COOLDOWN_FRAMES;
+			level1_playerAttacking = true;
+			level1_attackType = 1;
+			level1_attackAnimFrame = 0;
+			level1_attackAnimTimer = 0;
 		}
 
 		// Enemy attacks automatically on its own timer
@@ -238,46 +307,28 @@ inline void level1_fixedUpdate()
 			if (level1_energy < 0) level1_energy = 0;
 		}
 
-		// Check outcome
 		if (level1_enemyEnergy <= 0) {
 			level1_combatActive = false;
-			level1_combatDone = true; // won't fight again this level
+			level1_combatDone = true;
 		}
 		else if (level1_energy <= 0) {
 			level1_gameOver = true;
 		}
 
-		return; // skip running logic while fighting
+		return;
 	}
 
 	// ---------------- RUNNING LOGIC ----------------
 	level1_isMoving = false;
 
-	// Enemy attacks the player automatically while the fight is ongoing
-	if (level1_enemyEncountered && !level1_enemyDefeated) {
-		level1_enemyAttackTimer++;
-		if (level1_enemyAttackTimer >= ENEMY_ATTACK_DELAY) {
-			level1_enemyAttackTimer = 0;
-			level1_energy -= ENEMY_ATTACK_DAMAGE;
-			if (level1_energy <= 0) {
-				level1_energy = 0;
-				level1_gameOver = true;
-			}
-		}
-	}
-
 	if (!level1_doorsVisible) {
 		if (isSpecialKeyPressed(GLUT_KEY_RIGHT)) {
 			level1_isMoving = true;
-
 			level1_bgX -= level1_playerSpeed;
-			if (level1_bgX <= -SCREEN_WIDTH) {
-				level1_bgX = 0;
-			}
+			if (level1_bgX <= -SCREEN_WIDTH) level1_bgX = 0;
 
 			level1_distanceCovered += level1_playerSpeed;
 
-			// Trigger the fight once, on the way to the doors
 			if (!level1_combatDone && level1_distanceCovered >= COMBAT_TRIGGER_DISTANCE) {
 				level1_combatActive = true;
 				level1_enemyEnergy = ENEMY_MAX_ENERGY;
@@ -291,16 +342,11 @@ inline void level1_fixedUpdate()
 		}
 		else if (isSpecialKeyPressed(GLUT_KEY_LEFT) && level1_distanceCovered > 0) {
 			level1_isMoving = true;
-
 			level1_bgX += level1_playerSpeed;
-			if (level1_bgX >= SCREEN_WIDTH) {
-				level1_bgX = 0;
-			}
+			if (level1_bgX >= SCREEN_WIDTH) level1_bgX = 0;
 
 			level1_distanceCovered -= level1_playerSpeed;
-			if (level1_distanceCovered < 0) {
-				level1_distanceCovered = 0;
-			}
+			if (level1_distanceCovered < 0) level1_distanceCovered = 0;
 		}
 	}
 
@@ -357,15 +403,6 @@ inline void handleLevel1Keyboard(unsigned char key)
 {
 	if (key == 'r' || key == 'R')
 		setupLevel1();
-
-	// Attack the enemy with SPACE while the fight is active
-	if (key == ' ' && level1_enemyEncountered && !level1_enemyDefeated && !level1_gameOver) {
-		level1_enemyHealth -= PLAYER_ATTACK_DAMAGE;
-		if (level1_enemyHealth <= 0) {
-			level1_enemyHealth = 0;
-			level1_enemyDefeated = true;
-		}
-	}
 }
 
 #endif
