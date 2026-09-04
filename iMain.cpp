@@ -86,7 +86,7 @@ void iKeyboard(unsigned char key)
 }
 void fixedUpdate() {
 	level1_fixedUpdate();
-	level2_fixedUpdate();                // <-- ADDED (Level2)
+	if (gameState == 6) level2_fixedUpdate();                // <-- ADDED (Level2)
 }
 int main()
 {
