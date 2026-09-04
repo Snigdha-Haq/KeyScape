@@ -19,10 +19,17 @@ static int level2_playerWidth = 90, level2_playerHeight = 130;
 static int level2_playerSpeed = 5;
 static const float level2_groundY = 80.0f;
 
+// Autonomous movement speeds towards player
+static float level2_enemyAutoSpeed = 3.5f;
+static float level2_keyAutoSpeed = 2.5f;
+
+// Direction facing (true = right, false = left)
+static bool level2_facingRight = true;
+
 // Background sliding position
 static int level2_bgX = 0;
 static int level2_distanceCovered = 0;
-#define LEVEL2_TARGET_DISTANCE 2500
+#define LEVEL2_TARGET_DISTANCE 4500
 
 // Animation
 static bool level2_isMoving = false;
@@ -30,7 +37,7 @@ static int level2_animFrame = 0;
 static int level2_animTimer = 0;
 #define LEVEL2_ANIM_FRAME_DELAY 6
 
-// Jump physics (Corrected for Upper Arrow)
+// Jump physics
 static bool level2_isJumping = false;
 static float level2_jumpVelocity = 0.0f;
 #define LEVEL2_JUMP_STRENGTH 16.0f
@@ -42,7 +49,7 @@ static int level2_energy = 100;
 static bool level2_gameOver = false;
 static bool level2_keyFound = false;
 
-// ---------------- KEYS ----------------
+// ---------------- KEYS (RUNNING PHASE) ----------------
 #define LEVEL2_NUM_KEYS 4
 #define LEVEL2_KEY_SIZE 40
 
@@ -56,7 +63,7 @@ struct Level2Key {
 };
 
 static Level2Key level2_keys[LEVEL2_NUM_KEYS];
-static int level2_keySpawnDistance[LEVEL2_NUM_KEYS] = { 200, 650, 1100, 1550 };
+static int level2_keySpawnDistance[LEVEL2_NUM_KEYS] = { 400, 1300, 2200, 3100 };
 
 static int level2_keyColor[LEVEL2_NUM_KEYS][3] = {
 	{ 255, 215, 0 },   // Key 0 - Gold
@@ -67,20 +74,20 @@ static int level2_keyColor[LEVEL2_NUM_KEYS][3] = {
 
 static bool level2_keyCollected[LEVEL2_NUM_KEYS] = { false, false, false, false };
 
-// ---------------- OBSTACLES (crabs) ----------------
+// ---------------- OBSTACLES (CRAB, OCTOPASS, SEAHORSE) ----------------
 #define LEVEL2_NUM_OBSTACLES 5
 
 struct Level2Obstacle {
 	float x;
 	int y, width, height;
+	int type; // 0: Crab, 1: Octopass, 2: Seahorse
 	bool spawned;
 	bool active;
 	bool hit;
 };
 
 static Level2Obstacle level2_obstacles[LEVEL2_NUM_OBSTACLES];
-static int level2_obstacleSpawnDistance[LEVEL2_NUM_OBSTACLES] = { 100, 400, 800, 1200, 1600 };
-#define LEVEL2_OBSTACLE_WIDTH 50
+static int level2_obstacleSpawnDistance[LEVEL2_NUM_OBSTACLES] = { 850, 1750, 2650, 3550, 4000 };
 #define LEVEL2_OBSTACLE_DAMAGE 15
 
 // ---------------- DOORS ----------------
@@ -102,10 +109,14 @@ static int level2_realKeyDoor = -1;
 
 enum Level2TaskType { LEVEL2_TASK_NONE = 0, LEVEL2_TASK_MATH, LEVEL2_TASK_PUZZLE, LEVEL2_TASK_COLOR };
 static int level2_doorTaskType[4];
-static int level2_doorRoomBgId[4];
 
 static bool level2_insideTask = false;
 static int level2_currentTaskDoor = -1;
+
+// ---------------- SHINY KEY & CLAM / PEARL CUTSCENE ----------------
+static int level2_finishStage = 0;
+static float level2_shineTimer = 0.0f;
+static float level2_clamOpenAngle = 0.0f;
 
 // --- Task states ---
 static int level2_mathA = 0, level2_mathB = 0;
@@ -215,6 +226,7 @@ inline void setupLevel2()
 	level2_bgX = 0;
 	level2_distanceCovered = 0;
 	level2_doorsVisible = false;
+	level2_facingRight = true;
 
 	level2_energy = 100;
 	level2_keyFound = false;
@@ -229,6 +241,9 @@ inline void setupLevel2()
 
 	level2_message[0] = '\0';
 	level2_messageTimer = 0;
+	level2_finishStage = 0;
+	level2_shineTimer = 0.0f;
+	level2_clamOpenAngle = 0.0f;
 
 	for (int i = 0; i < LEVEL2_NUM_KEYS; i++) {
 		level2_keys[i].id = i;
@@ -239,12 +254,25 @@ inline void setupLevel2()
 		level2_keyCollected[i] = false;
 	}
 
+	int obstacleTypes[LEVEL2_NUM_OBSTACLES] = { 0, 1, 2, 0, 1 };
 	for (int i = 0; i < LEVEL2_NUM_OBSTACLES; i++) {
 		level2_obstacles[i].spawned = false;
 		level2_obstacles[i].active = false;
 		level2_obstacles[i].hit = false;
-		level2_obstacles[i].width = LEVEL2_OBSTACLE_WIDTH;
-		level2_obstacles[i].height = 28 + (rand() % 3) * 6;
+		level2_obstacles[i].type = obstacleTypes[i];
+
+		if (level2_obstacles[i].type == 0) { // Crab
+			level2_obstacles[i].width = 65;
+			level2_obstacles[i].height = 60;
+		}
+		else if (level2_obstacles[i].type == 1) { // Octopass
+			level2_obstacles[i].width = 70;
+			level2_obstacles[i].height = 70;
+		}
+		else { // Seahorse
+			level2_obstacles[i].width = 50;
+			level2_obstacles[i].height = 80;
+		}
 	}
 
 	level2_realKeyDoor = rand() % 4;
@@ -258,7 +286,6 @@ inline void setupLevel2()
 		for (int i = 0; i < 4; i++) {
 			if (i == level2_realKeyDoor) level2_doorTaskType[i] = LEVEL2_TASK_NONE;
 			else level2_doorTaskType[i] = types[ti++];
-			level2_doorRoomBgId[i] = i;
 		}
 	}
 	level2_insideTask = false;
@@ -295,39 +322,86 @@ inline void level2_drawKey(float x, int y, int size, int r, int g, int b)
 	iCircle(x + size * 0.3f, y + size * 0.3f, size * 0.28f);
 }
 
-inline void level2_drawCrab(float x, int y, int w, int h)
+inline void level2_drawShinyRealKey(int cx, int cy)
 {
-	float cx = x + w / 2.0f;
-	float cy = y + h / 2.0f;
+	float pulse = (sin(level2_shineTimer * 0.1f) + 1.0f) * 0.5f;
+	int glowRadius = (int)(70 + pulse * 25);
 
-	iSetColor(150, 20, 20);
-	for (int side = -1; side <= 1; side += 2) {
-		iLine((int)(cx + side * w * 0.10f), (int)(cy), (int)(cx + side * w * 0.55f), (int)(cy - h * 0.35f));
-		iLine((int)(cx + side * w * 0.10f), (int)(cy + h * 0.10f), (int)(cx + side * w * 0.60f), (int)(cy + h * 0.05f));
-		iLine((int)(cx + side * w * 0.10f), (int)(cy + h * 0.20f), (int)(cx + side * w * 0.55f), (int)(cy + h * 0.45f));
+	iSetColor(255, 235, 120);
+	iFilledCircle(cx, cy, glowRadius);
+	iSetColor(255, 255, 200);
+	iFilledCircle(cx, cy, (int)(glowRadius * 0.7f));
+
+	iSetColor(255, 255, 255);
+	for (int a = 0; a < 8; a++) {
+		float angle = a * 3.14159f / 4.0f + level2_shineTimer * 0.05f;
+		int x1 = cx + (int)(cos(angle) * (glowRadius + 15));
+		int y1 = cy + (int)(sin(angle) * (glowRadius + 15));
+		iLine(cx, cy, x1, y1);
 	}
 
-	iSetColor(220, 40, 40);
-	iFilledCircle(cx - w * 0.48f, cy, w * 0.16f);
-	iFilledCircle(cx + w * 0.48f, cy, w * 0.16f);
-	iSetColor(150, 20, 20);
-	iCircle(cx - w * 0.48f, cy, w * 0.16f);
-	iCircle(cx + w * 0.48f, cy, w * 0.16f);
+	float kx = cx - 50.0f;
+	float ky = cy - 25.0f;
+	level2_drawKey(kx, (int)ky, 100, 255, 215, 0);
 
-	iSetColor(220, 40, 40);
-	iFilledCircle(cx, cy, w * 0.36f);
-	iSetColor(150, 20, 20);
-	iCircle(cx, cy, w * 0.36f);
-
-	iSetColor(220, 40, 40);
-	iFilledRectangle(cx - w * 0.18f, cy + h * 0.15f, 4, 12);
-	iFilledRectangle(cx + w * 0.14f, cy + h * 0.15f, 4, 12);
+	int sX1 = cx + 45 + (int)(sin(level2_shineTimer * 0.2f) * 10);
+	int sY1 = cy + 30;
 	iSetColor(255, 255, 255);
-	iFilledCircle(cx - w * 0.16f, cy + h * 0.30f, 4);
-	iFilledCircle(cx + w * 0.16f, cy + h * 0.30f, 4);
-	iSetColor(0, 0, 0);
-	iFilledCircle(cx - w * 0.16f, cy + h * 0.30f, 2);
-	iFilledCircle(cx + w * 0.16f, cy + h * 0.30f, 2);
+	iFilledCircle(sX1, sY1, 4);
+	iLine(sX1 - 8, sY1, sX1 + 8, sY1);
+	iLine(sX1, sY1 - 8, sX1, sY1 + 8);
+}
+
+inline void level2_drawClamAndPearl(int cx, int cy)
+{
+	iSetColor(190, 160, 130);
+	iFilledCircle(cx, cy - 20, 112);
+	iSetColor(140, 110, 85);
+	iCircle(cx, cy - 20, 112);
+
+	iSetColor(245, 238, 225);
+	iFilledCircle(cx, cy - 16, 102);
+
+	iSetColor(255, 248, 238);
+	iFilledCircle(cx, cy - 14, 90);
+
+	iSetColor(175, 145, 115);
+	for (int i = -3; i <= 3; i++) {
+		iLine(cx, cy - 80, cx + i * 26, cy - 10);
+	}
+
+	float pearlGlow = (sin(level2_shineTimer * 0.15f) + 1.0f) * 0.5f;
+	iSetColor(230, 245, 255);
+	iFilledCircle(cx, cy + 10, (int)(42 + pearlGlow * 8));
+
+	iSetColor(255, 255, 255);
+	iFilledCircle(cx, cy + 10, 36);
+	iSetColor(215, 220, 230);
+	iCircle(cx, cy + 10, 36);
+
+	iSetColor(255, 255, 255);
+	iFilledCircle(cx - 10, cy + 22, 9);
+	iFilledCircle(cx + 8, cy + 15, 4);
+
+	int topY = cy - 20 + (int)level2_clamOpenAngle;
+
+	iSetColor(210, 180, 145);
+	iFilledCircle(cx, topY + 80, 108);
+	iSetColor(150, 120, 90);
+	iCircle(cx, topY + 80, 108);
+
+	iSetColor(230, 205, 175);
+	iFilledCircle(cx, topY + 77, 98);
+	iSetColor(175, 140, 105);
+	for (int i = -3; i <= 3; i++) {
+		iLine(cx, topY + 140, cx + i * 26, topY + 60);
+	}
+
+	iSetColor(255, 250, 210);
+	for (int r = 0; r < 6; r++) {
+		float ang = 0.6f + r * 0.35f;
+		iLine(cx, cy + 10, cx + (int)(cos(ang) * 140), cy + 10 + (int)(sin(ang) * 140));
+	}
 }
 
 inline void level2_drawOptionBox(int idx, int selectedForNothing)
@@ -356,7 +430,9 @@ inline void renderLevel2()
 	static int UnderSeaBg = -1, doorClosedImg = -1, doorOpenImg = -1, idleImg = -1;
 	static int runFrames[8];
 	static int jumpFrames[3];
-	static int doorRoomBg[4];
+	static int obstacleImgs[3] = { -1, -1, -1 };
+
+	static int bgMathImg = -1, bgPuzzleImg = -1, bgColorImg = -1, bgPearlImg = -1;
 	static bool jumpImagesOK = true;
 
 	if (UnderSeaBg == -1) {
@@ -379,25 +455,45 @@ inline void renderLevel2()
 
 		jumpImagesOK = (jumpFrames[0] >= 0 && jumpFrames[1] >= 0 && jumpFrames[2] >= 0);
 
-		doorRoomBg[0] = iLoadImage("Image/DoorBg1.png");
-		doorRoomBg[1] = iLoadImage("Image/DoorBg2.png");
-		doorRoomBg[2] = iLoadImage("Image/DoorBg3.png");
-		doorRoomBg[3] = iLoadImage("Image/DoorBg4.png");
+		bgMathImg = iLoadImage("Image/bgMath.png");
+		bgPuzzleImg = iLoadImage("Image/bgPuzzle.png");
+		bgColorImg = iLoadImage("Image/bgColor.png");
+		bgPearlImg = iLoadImage("Image/bgPearl.png");
+
+		obstacleImgs[0] = iLoadImage("Image/crab.png");
+		obstacleImgs[1] = iLoadImage("Image/octopass.png");
+		obstacleImgs[2] = iLoadImage("Image/seahorse.png");
 	}
 
-	if (level2_doorsVisible && level2_insideTask && level2_currentTaskDoor >= 0) {
-		iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, doorRoomBg[level2_currentTaskDoor]);
+	// 1. Background Selection
+	if (level2_doorsVisible && level2_finishStage >= 1) {
+		if (bgPearlImg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bgPearlImg);
+		else iShowImage(level2_bgX, 0, SCREEN_WIDTH, SCREEN_HEIGHT, UnderSeaBg);
+	}
+	else if (level2_doorsVisible && level2_insideTask && level2_currentTaskDoor >= 0) {
+		int t = level2_doorTaskType[level2_currentTaskDoor];
+		int selectedBg = -1;
+		if (t == LEVEL2_TASK_MATH) selectedBg = bgMathImg;
+		else if (t == LEVEL2_TASK_PUZZLE) selectedBg = bgPuzzleImg;
+		else if (t == LEVEL2_TASK_COLOR) selectedBg = bgColorImg;
+
+		if (selectedBg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, selectedBg);
+		else iShowImage(level2_bgX, 0, SCREEN_WIDTH, SCREEN_HEIGHT, UnderSeaBg);
 	}
 	else {
 		iShowImage(level2_bgX, 0, SCREEN_WIDTH, SCREEN_HEIGHT, UnderSeaBg);
 		iShowImage(level2_bgX + SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, UnderSeaBg);
 	}
 
+	// 2. Obstacles and Keys
 	if (!level2_doorsVisible) {
 		for (int i = 0; i < LEVEL2_NUM_OBSTACLES; i++) {
 			if (level2_obstacles[i].active) {
-				level2_drawCrab(level2_obstacles[i].x, level2_obstacles[i].y,
-					level2_obstacles[i].width, level2_obstacles[i].height);
+				int img = obstacleImgs[level2_obstacles[i].type];
+				if (img >= 0) {
+					iShowImage((int)level2_obstacles[i].x, level2_obstacles[i].y,
+						level2_obstacles[i].width, level2_obstacles[i].height, img);
+				}
 			}
 		}
 
@@ -409,6 +505,7 @@ inline void renderLevel2()
 		}
 	}
 
+	// 3. Player
 	if (!level2_doorsVisible) {
 		int playerImg;
 		if (level2_isJumping) playerImg = jumpImagesOK ? jumpFrames[level2_jumpFrameIndex] : idleImg;
@@ -418,18 +515,42 @@ inline void renderLevel2()
 		iShowImage((int)level2_playerX, (int)level2_playerY, level2_playerWidth, level2_playerHeight, playerImg);
 	}
 
+	// 4. Doors & End Sequence
 	if (level2_doorsVisible) {
 		if (!level2_insideTask) {
-			for (int i = 0; i < 4; i++) {
-				int imgToUse = level2_doors[i].visited ? doorOpenImg : doorClosedImg;
-				iShowImage(level2_doors[i].x, level2_doors[i].y, level2_doors[i].width, level2_doors[i].height, imgToUse);
+			if (level2_finishStage == 0) {
+				for (int i = 0; i < 4; i++) {
+					int imgToUse = level2_doors[i].visited ? doorOpenImg : doorClosedImg;
+					iShowImage(level2_doors[i].x, level2_doors[i].y, level2_doors[i].width, level2_doors[i].height, imgToUse);
 
-				iSetColor(80, 80, 80);
-				iRectangle(level2_doors[i].x - 3, level2_doors[i].y - 3, level2_doors[i].width + 6, level2_doors[i].height + 6);
+					iSetColor(80, 80, 80);
+					iRectangle(level2_doors[i].x - 3, level2_doors[i].y - 3, level2_doors[i].width + 6, level2_doors[i].height + 6);
 
-				if (level2_doors[i].visited) {
-					iSetColor(255, 215, 0);
-					iText(level2_doors[i].x + 30, level2_doors[i].y + level2_doors[i].height + 10, "OPEN!");
+					if (level2_doors[i].visited) {
+						iSetColor(255, 215, 0);
+						iText(level2_doors[i].x + 30, level2_doors[i].y + level2_doors[i].height + 10, "OPEN!");
+					}
+				}
+			}
+
+			if (level2_finishStage == 1) {
+				level2_drawShinyRealKey(SCREEN_WIDTH / 2, 330);
+
+				iSetColor(255, 255, 255);
+				iFilledRectangle(SCREEN_WIDTH / 2 - 170, 190, 340, 45);
+				iSetColor(0, 0, 0);
+				iRectangle(SCREEN_WIDTH / 2 - 170, 190, 340, 45);
+				iText(SCREEN_WIDTH / 2 - 145, 208, "ASHOL CHABI! Jhinuk khulte Click Koro!");
+			}
+			else if (level2_finishStage >= 2) {
+				level2_drawClamAndPearl(SCREEN_WIDTH / 2, 300);
+
+				if (level2_finishStage == 2) {
+					iSetColor(255, 255, 255);
+					iFilledRectangle(SCREEN_WIDTH / 2 - 150, 130, 300, 40);
+					iSetColor(0, 0, 0);
+					iRectangle(SCREEN_WIDTH / 2 - 150, 130, 300, 40);
+					iText(SCREEN_WIDTH / 2 - 120, 145, "Mukta te Click kore Level Complete koro!");
 				}
 			}
 		}
@@ -488,6 +609,7 @@ inline void renderLevel2()
 		}
 	}
 
+	// 5. HUD Display
 	for (int i = 0; i < LEVEL2_NUM_KEYS; i++) {
 		int hx = 25 + i * 35, hy = 25;
 		if (level2_keyCollected[i])
@@ -511,9 +633,9 @@ inline void renderLevel2()
 
 	iSetColor(0, 0, 0);
 	if (!level2_doorsVisible) {
-		iText(SCREEN_WIDTH / 2 - 160, SCREEN_HEIGHT - 40, "Hold RIGHT to run, UP ARROW to jump!");
+		iText(SCREEN_WIDTH / 2 - 180, SCREEN_HEIGHT - 40, "LEFT/RIGHT to Move, UP ARROW to jump!");
 	}
-	else if (!level2_insideTask && !level2_gameOver && !level2_keyFound) {
+	else if (!level2_insideTask && !level2_gameOver && !level2_keyFound && level2_finishStage == 0) {
 		iText(SCREEN_WIDTH / 2 - 170, SCREEN_HEIGHT - 40, "Ekta dorjaay ASHOL chabi ache - beche nao!");
 	}
 
@@ -524,19 +646,25 @@ inline void renderLevel2()
 
 	if (level2_gameOver)
 		iText(SCREEN_WIDTH / 2 - 130, 480, "GAME OVER - Press R to restart");
-	else if (level2_keyFound)
-		iText(SCREEN_WIDTH / 2 - 130, 480, "ASHOL CHABI PAWA GECHE! Level Complete!");
+	else if (level2_keyFound && level2_finishStage == 3)
+		iText(SCREEN_WIDTH / 2 - 170, 500, "MUKTA PAWA GECHE! LEVEL 2 COMPLETE!");
 }
 
 inline void level2_fixedUpdate()
 {
 	if (level2_gameOver || level2_keyFound) return;
 
+	level2_shineTimer += 1.0f;
+
+	if (level2_finishStage >= 2 && level2_clamOpenAngle < 80.0f) {
+		level2_clamOpenAngle += 2.5f;
+	}
+
 	if (level2_messageTimer > 0) level2_messageTimer--;
 
 	level2_isMoving = false;
 
-	// Upper Arrow দিয়ে জাম্প শুরু
+	// Jump
 	if (!level2_doorsVisible && isSpecialKeyPressed(GLUT_KEY_UP)) {
 		if (!level2_isJumping) {
 			level2_isJumping = true;
@@ -545,9 +673,13 @@ inline void level2_fixedUpdate()
 		}
 	}
 
-	// Right Arrow দিয়ে রান
+	// ---------------- PLAYER HORIZONTAL MOVEMENT ----------------
+	float extraMoveKeys = 0.0f;
+	float extraMoveEnemies = 0.0f;
+
 	if (!level2_doorsVisible && isSpecialKeyPressed(GLUT_KEY_RIGHT)) {
 		level2_isMoving = true;
+		level2_facingRight = true;
 
 		level2_bgX -= level2_playerSpeed;
 		if (level2_bgX <= -SCREEN_WIDTH) {
@@ -556,30 +688,73 @@ inline void level2_fixedUpdate()
 
 		level2_distanceCovered += level2_playerSpeed;
 
-		for (int i = 0; i < LEVEL2_NUM_KEYS; i++) {
-			if (!level2_keys[i].spawned && level2_distanceCovered >= level2_keySpawnDistance[i]) {
-				level2_keys[i].spawned = true;
-				level2_keys[i].active = true;
-				level2_keys[i].x = (float)SCREEN_WIDTH + 20;
-				level2_keys[i].y = (int)level2_groundY + 35;
-			}
-		}
-
-		for (int i = 0; i < LEVEL2_NUM_OBSTACLES; i++) {
-			if (!level2_obstacles[i].spawned && level2_distanceCovered >= level2_obstacleSpawnDistance[i]) {
-				level2_obstacles[i].spawned = true;
-				level2_obstacles[i].active = true;
-				level2_obstacles[i].x = (float)SCREEN_WIDTH + 20;
-				level2_obstacles[i].y = (int)level2_groundY;
-			}
-		}
+		// Extra shift because player is running forward
+		extraMoveKeys = (float)level2_playerSpeed;
+		extraMoveEnemies = (float)level2_playerSpeed;
 
 		if (level2_distanceCovered >= LEVEL2_TARGET_DISTANCE) {
 			level2_doorsVisible = true;
 		}
 	}
+	else if (!level2_doorsVisible && isSpecialKeyPressed(GLUT_KEY_LEFT)) {
+		if (level2_distanceCovered > 0) {
+			level2_isMoving = true;
+			level2_facingRight = false;
 
-	// ---------------- JUMP PHYSICS ----------------
+			level2_bgX += level2_playerSpeed;
+			if (level2_bgX >= 0) {
+				level2_bgX = -SCREEN_WIDTH;
+			}
+
+			level2_distanceCovered -= level2_playerSpeed;
+
+			// Subtracted shift because player is backing away
+			extraMoveKeys = -(float)level2_playerSpeed;
+			extraMoveEnemies = -(float)level2_playerSpeed;
+		}
+	}
+
+	// ---------------- AUTONOMOUS SPAWN & MOVEMENT TOWARDS PLAYER ----------------
+	if (!level2_doorsVisible) {
+		// Keys move towards player
+		for (int i = 0; i < LEVEL2_NUM_KEYS; i++) {
+			if (!level2_keys[i].spawned && level2_distanceCovered >= level2_keySpawnDistance[i]) {
+				level2_keys[i].spawned = true;
+				level2_keys[i].active = true;
+				level2_keys[i].x = (float)SCREEN_WIDTH + 20;
+				level2_keys[i].y = (int)level2_groundY + 45;
+			}
+			else if (level2_keys[i].active) {
+				// Autonomous forward travel + relative shift from player movement
+				level2_keys[i].x -= (level2_keyAutoSpeed + extraMoveKeys);
+				if (level2_keys[i].x + level2_keys[i].size < -60) {
+					level2_keys[i].active = false;
+				}
+			}
+		}
+
+		// Enemies move towards player
+		for (int i = 0; i < LEVEL2_NUM_OBSTACLES; i++) {
+			if (!level2_obstacles[i].spawned && level2_distanceCovered >= level2_obstacleSpawnDistance[i]) {
+				level2_obstacles[i].spawned = true;
+				level2_obstacles[i].active = true;
+				level2_obstacles[i].x = (float)SCREEN_WIDTH + 20;
+
+				if (level2_obstacles[i].type == 0)      level2_obstacles[i].y = (int)level2_groundY;
+				else if (level2_obstacles[i].type == 1) level2_obstacles[i].y = (int)level2_groundY + 10;
+				else                                    level2_obstacles[i].y = (int)level2_groundY + 30;
+			}
+			else if (level2_obstacles[i].active) {
+				// Autonomous forward crawl/swim + relative shift from player movement
+				level2_obstacles[i].x -= (level2_enemyAutoSpeed + extraMoveEnemies);
+				if (level2_obstacles[i].x + level2_obstacles[i].width < -60) {
+					level2_obstacles[i].active = false;
+				}
+			}
+		}
+	}
+
+	// Jump Physics
 	if (level2_isJumping) {
 		level2_playerY += level2_jumpVelocity;
 		level2_jumpVelocity -= LEVEL2_GRAVITY;
@@ -596,33 +771,23 @@ inline void level2_fixedUpdate()
 		}
 	}
 
-	// Keys and Obstacles collision
+	// Collisions & Pickups
 	if (!level2_doorsVisible) {
 		for (int i = 0; i < LEVEL2_NUM_KEYS; i++) {
-			if (!level2_keys[i].active) continue;
+			if (!level2_keys[i].active || level2_keys[i].collected) continue;
 
-			level2_keys[i].x -= level2_playerSpeed;
-
-			if (!level2_keys[i].collected &&
-				level2_rectOverlap(level2_keys[i].x, (float)level2_keys[i].y, level2_keys[i].size, level2_keys[i].size,
+			if (level2_rectOverlap(level2_keys[i].x, (float)level2_keys[i].y, level2_keys[i].size, level2_keys[i].size,
 				level2_playerX, level2_playerY, level2_playerWidth, level2_playerHeight)) {
 				level2_keys[i].collected = true;
 				level2_keys[i].active = false;
 				level2_keyCollected[level2_keys[i].id] = true;
 			}
-
-			if (level2_keys[i].x + level2_keys[i].size < 0) {
-				level2_keys[i].active = false;
-			}
 		}
 
 		for (int i = 0; i < LEVEL2_NUM_OBSTACLES; i++) {
-			if (!level2_obstacles[i].active) continue;
+			if (!level2_obstacles[i].active || level2_obstacles[i].hit) continue;
 
-			level2_obstacles[i].x -= level2_playerSpeed;
-
-			if (!level2_obstacles[i].hit &&
-				level2_rectOverlap(level2_obstacles[i].x, (float)level2_obstacles[i].y, level2_obstacles[i].width, level2_obstacles[i].height,
+			if (level2_rectOverlap(level2_obstacles[i].x, (float)level2_obstacles[i].y, level2_obstacles[i].width, level2_obstacles[i].height,
 				level2_playerX, level2_playerY, level2_playerWidth, level2_playerHeight)) {
 				level2_obstacles[i].hit = true;
 				level2_energy -= LEVEL2_OBSTACLE_DAMAGE;
@@ -631,14 +796,9 @@ inline void level2_fixedUpdate()
 					level2_gameOver = true;
 				}
 			}
-
-			if (level2_obstacles[i].x + level2_obstacles[i].width < 0) {
-				level2_obstacles[i].active = false;
-			}
 		}
 	}
 
-	// Animation
 	if (level2_isMoving) {
 		level2_animTimer++;
 		if (level2_animTimer >= LEVEL2_ANIM_FRAME_DELAY) {
@@ -655,6 +815,25 @@ inline void level2_fixedUpdate()
 inline void handleLevel2DoorClicks(int mx, int my)
 {
 	if (level2_gameOver || level2_keyFound) return;
+
+	if (level2_finishStage == 1) {
+		if (mx >= SCREEN_WIDTH / 2 - 120 && mx <= SCREEN_WIDTH / 2 + 120 &&
+			my >= 200 && my <= 420) {
+			level2_finishStage = 2;
+		}
+		return;
+	}
+
+	if (level2_finishStage == 2) {
+		float dist = sqrtf((float)((mx - SCREEN_WIDTH / 2)*(mx - SCREEN_WIDTH / 2) + (my - 310)*(my - 310)));
+		if (dist <= 50.0f) {
+			level2_finishStage = 3;
+			level2_keyFound = true;
+		}
+		return;
+	}
+
+	if (level2_finishStage >= 1) return;
 	if (!level2_doorsVisible) return;
 
 	if (level2_insideTask) {
@@ -698,7 +877,7 @@ inline void handleLevel2DoorClicks(int mx, int my)
 		if (level2_isInside(mx, my, level2_doors[i])) {
 			if (i == level2_realKeyDoor) {
 				level2_doors[i].visited = true;
-				level2_keyFound = true;
+				level2_finishStage = 1;
 			}
 			else if (!level2_doors[i].visited) {
 				level2_currentTaskDoor = i;
@@ -714,7 +893,6 @@ inline void handleLevel2DoorClicks(int mx, int my)
 	}
 }
 
-// Special keyboard handler for UP arrow
 inline void handleLevel2SpecialKeyboard(unsigned char key)
 {
 	if (key == GLUT_KEY_UP) {
