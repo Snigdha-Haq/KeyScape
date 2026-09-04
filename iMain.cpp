@@ -68,9 +68,9 @@ void iMouse(int button, int state, int mx, int my)
 }
 void iSpecialKeyboard(unsigned char key)
 {
-	/*if (gameState == 1) {
-	handleLevel1Keyboard(key);
-	}*/
+	if (gameState == 6) {
+		handleLevel2SpecialKeyboard(key);
+	}
 }
 void iKeyboard(unsigned char key)
 {

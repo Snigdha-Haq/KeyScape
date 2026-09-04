@@ -1,4 +1,4 @@
-#ifndef LEVEL2_H_INCLUDED
+﻿#ifndef LEVEL2_H_INCLUDED
 #define LEVEL2_H_INCLUDED
 
 #include <cmath>
@@ -7,25 +7,21 @@
 #include <cstdio>
 #include <cstring>
 
-
 #ifndef SCREEN_WIDTH
 #define SCREEN_WIDTH 1000
 #define SCREEN_HEIGHT 600
 #endif
 
 // ---------------- BASIC LEVEL STATE ----------------
-static int level2_playerX = 100, level2_playerY = 80;
+static float level2_playerX = 100.0f;
+static float level2_playerY = 80.0f;
 static int level2_playerWidth = 90, level2_playerHeight = 130;
 static int level2_playerSpeed = 5;
-static int level2_groundY = 80; // player's resting (non-jump) Y
+static const float level2_groundY = 80.0f;
 
 // Background sliding position
 static int level2_bgX = 0;
 static int level2_distanceCovered = 0;
-// NOTE: increased so the player has enough time to collect ALL keys
-// before the doors show up. (A key spawned at the far end still needs
-// roughly ~830px of on-screen travel to reach the player, so the target
-// distance must be bigger than the last key's spawn distance + that gap.)
 #define LEVEL2_TARGET_DISTANCE 2500
 
 // Animation
@@ -34,40 +30,34 @@ static int level2_animFrame = 0;
 static int level2_animTimer = 0;
 #define LEVEL2_ANIM_FRAME_DELAY 6
 
-// Jump (used to dodge ground obstacles / difficulties)
+// Jump physics (Corrected for Upper Arrow)
 static bool level2_isJumping = false;
 static float level2_jumpVelocity = 0.0f;
-#define LEVEL2_JUMP_STRENGTH -14.0f
-#define LEVEL2_GRAVITY 0.9f
-// which of the 3 jump images to show: 0 = launching up, 1 = near the peak, 2 = falling down
+#define LEVEL2_JUMP_STRENGTH 16.0f
+#define LEVEL2_GRAVITY 0.8f
 static int level2_jumpFrameIndex = 0;
 
 // Energy & Game State
 static int level2_energy = 100;
 static bool level2_gameOver = false;
-static bool level2_keyFound = false; // now means: the REAL key was found -> level complete
+static bool level2_keyFound = false;
 
-// ---------------- KEYS (4 collectibles, drawn with iDraw shapes) ----------------
+// ---------------- KEYS ----------------
 #define LEVEL2_NUM_KEYS 4
 #define LEVEL2_KEY_SIZE 40
 
 struct Level2Key {
 	float x;
 	int y, size;
-	int id;          // 0..3
-	bool spawned;     // has this key appeared yet in the run
-	bool active;      // currently visible/collidable on screen
-	bool collected;   // picked up by player
+	int id;
+	bool spawned;
+	bool active;
+	bool collected;
 };
 
 static Level2Key level2_keys[LEVEL2_NUM_KEYS];
-
-// Distance (in pixels run) at which each key appears.
-// Spread out and kept well before LEVEL2_TARGET_DISTANCE so the player
-// always has time to grab every key before the doors appear.
 static int level2_keySpawnDistance[LEVEL2_NUM_KEYS] = { 200, 650, 1100, 1550 };
 
-// One distinct color per key id (used for the HUD icon)
 static int level2_keyColor[LEVEL2_NUM_KEYS][3] = {
 	{ 255, 215, 0 },   // Key 0 - Gold
 	{ 65, 145, 220 },  // Key 1 - Blue
@@ -77,7 +67,7 @@ static int level2_keyColor[LEVEL2_NUM_KEYS][3] = {
 
 static bool level2_keyCollected[LEVEL2_NUM_KEYS] = { false, false, false, false };
 
-// ---------------- OBSTACLES / DIFFICULTIES (must jump over) - drawn as red crabs ----------------
+// ---------------- OBSTACLES (crabs) ----------------
 #define LEVEL2_NUM_OBSTACLES 5
 
 struct Level2Obstacle {
@@ -85,7 +75,7 @@ struct Level2Obstacle {
 	int y, width, height;
 	bool spawned;
 	bool active;
-	bool hit; // energy already deducted for this one
+	bool hit;
 };
 
 static Level2Obstacle level2_obstacles[LEVEL2_NUM_OBSTACLES];
@@ -96,7 +86,7 @@ static int level2_obstacleSpawnDistance[LEVEL2_NUM_OBSTACLES] = { 100, 400, 800,
 // ---------------- DOORS ----------------
 struct Level2Door {
 	int x, y, width, height;
-	bool visited; // true = already opened (real key claimed OR wrong-door task solved)
+	bool visited;
 };
 
 #define LEVEL2_DOOR_WIDTH  120
@@ -106,48 +96,38 @@ struct Level2Door {
 #define LEVEL2_DOOR_Y 100
 
 static Level2Door level2_doors[4];
-static bool level2_doorsVisible = false; // Simple toggle
+static bool level2_doorsVisible = false;
 
-// ---- REAL KEY / MINI-GAME SYSTEM ----
-// Exactly one door (random every game) actually contains the real key.
-// The other 3 doors each get one different mini-game task.
 static int level2_realKeyDoor = -1;
 
 enum Level2TaskType { LEVEL2_TASK_NONE = 0, LEVEL2_TASK_MATH, LEVEL2_TASK_PUZZLE, LEVEL2_TASK_COLOR };
 static int level2_doorTaskType[4];
-
-// Distinct "room" background shown behind each door's mini-game
 static int level2_doorRoomBgId[4];
 
-// Are we currently "inside" a door solving its task?
 static bool level2_insideTask = false;
 static int level2_currentTaskDoor = -1;
 
-// --- Math (addition) task state ---
+// --- Task states ---
 static int level2_mathA = 0, level2_mathB = 0;
 static int level2_mathOptions[4];
 static int level2_mathCorrectIndex = 0;
 
-// --- Puzzle (missing number in sequence) task state ---
 static int level2_puzzleSeq[4];
 static int level2_puzzleBlankIndex = 0;
 static int level2_puzzleStep = 0;
 static int level2_puzzleOptions[4];
 static int level2_puzzleCorrectIndex = 0;
 
-// --- Color match task state ---
 static int level2_colorTarget[3];
 static int level2_colorOptions[4][3];
 static int level2_colorCorrectIndex = 0;
 
-// Option-box layout used by all 3 mini-games (4 clickable choices)
 #define LEVEL2_OPT_W   150
 #define LEVEL2_OPT_H   70
 #define LEVEL2_OPT_GAP 30
 #define LEVEL2_OPT_Y   330
 #define LEVEL2_WRONG_TASK_PENALTY 8
 
-// Small on-screen feedback message
 static char level2_message[100] = "";
 static int level2_messageTimer = 0;
 
@@ -172,7 +152,7 @@ inline void level2_generateMathTask()
 
 inline void level2_generatePuzzleTask()
 {
-	level2_puzzleStep = 2 + rand() % 4;         // step of 2..5
+	level2_puzzleStep = 2 + rand() % 4;
 	int start = 1 + rand() % 10;
 	for (int i = 0; i < 4; i++) level2_puzzleSeq[i] = start + i * level2_puzzleStep;
 	level2_puzzleBlankIndex = rand() % 4;
@@ -230,7 +210,7 @@ inline void setupLevel2()
 	level2_doors[2] = { LEVEL2_DOORS_START_X + 2 * (LEVEL2_DOOR_WIDTH + LEVEL2_DOOR_GAP), LEVEL2_DOOR_Y, LEVEL2_DOOR_WIDTH, LEVEL2_DOOR_HEIGHT, false };
 	level2_doors[3] = { LEVEL2_DOORS_START_X + 3 * (LEVEL2_DOOR_WIDTH + LEVEL2_DOOR_GAP), LEVEL2_DOOR_Y, LEVEL2_DOOR_WIDTH, LEVEL2_DOOR_HEIGHT, false };
 
-	level2_playerX = 100;
+	level2_playerX = 100.0f;
 	level2_playerY = level2_groundY;
 	level2_bgX = 0;
 	level2_distanceCovered = 0;
@@ -264,15 +244,13 @@ inline void setupLevel2()
 		level2_obstacles[i].active = false;
 		level2_obstacles[i].hit = false;
 		level2_obstacles[i].width = LEVEL2_OBSTACLE_WIDTH;
-		level2_obstacles[i].height = 28 + (rand() % 3) * 6; // a little variety in crab size
+		level2_obstacles[i].height = 28 + (rand() % 3) * 6;
 	}
 
-	// ---- Randomly decide which door has the REAL key, and randomly
-	//      assign the 3 mini-game types to the other 3 doors ----
 	level2_realKeyDoor = rand() % 4;
 	{
 		int types[3] = { LEVEL2_TASK_MATH, LEVEL2_TASK_PUZZLE, LEVEL2_TASK_COLOR };
-		for (int i = 2; i > 0; i--) {          // small Fisher-Yates shuffle
+		for (int i = 2; i > 0; i--) {
 			int j = rand() % (i + 1);
 			int tmp = types[i]; types[i] = types[j]; types[j] = tmp;
 		}
@@ -280,15 +258,14 @@ inline void setupLevel2()
 		for (int i = 0; i < 4; i++) {
 			if (i == level2_realKeyDoor) level2_doorTaskType[i] = LEVEL2_TASK_NONE;
 			else level2_doorTaskType[i] = types[ti++];
-			level2_doorRoomBgId[i] = i; // room-bg index, matches doorRoomBg[] loaded in render
+			level2_doorRoomBgId[i] = i;
 		}
 	}
 	level2_insideTask = false;
 	level2_currentTaskDoor = -1;
 }
 
-// Generic AABB overlap check (float x so keys/obstacles can move smoothly)
-inline bool level2_rectOverlap(float ax, int ay, int aw, int ah, int bx, int by, int bw, int bh)
+inline bool level2_rectOverlap(float ax, float ay, int aw, int ah, float bx, float by, int bw, int bh)
 {
 	return (ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by);
 }
@@ -307,24 +284,22 @@ inline bool level2_isInsideBox(int px, int py, int bx, int by, int bw, int bh)
 inline void level2_drawKey(float x, int y, int size, int r, int g, int b)
 {
 	iSetColor(r, g, b);
-	iFilledCircle(x + size * 0.3f, y + size * 0.3f, size * 0.28f);   // key head
+	iFilledCircle(x + size * 0.3f, y + size * 0.3f, size * 0.28f);
 	iSetColor(255, 255, 255);
-	iFilledCircle(x + size * 0.3f, y + size * 0.3f, size * 0.12f);   // hole in the head
+	iFilledCircle(x + size * 0.3f, y + size * 0.3f, size * 0.12f);
 	iSetColor(r, g, b);
-	iFilledRectangle(x + size * 0.28f, y + size * 0.22f, size * 0.55f, size * 0.16f); // shaft
-	iFilledRectangle(x + size * 0.68f, y + size * 0.05f, size * 0.1f, size * 0.17f);  // tooth 1
-	iFilledRectangle(x + size * 0.84f, y + size * 0.05f, size * 0.1f, size * 0.22f);  // tooth 2
+	iFilledRectangle(x + size * 0.28f, y + size * 0.22f, size * 0.55f, size * 0.16f);
+	iFilledRectangle(x + size * 0.68f, y + size * 0.05f, size * 0.1f, size * 0.17f);
+	iFilledRectangle(x + size * 0.84f, y + size * 0.05f, size * 0.1f, size * 0.22f);
 	iSetColor(0, 0, 0);
 	iCircle(x + size * 0.3f, y + size * 0.3f, size * 0.28f);
 }
 
-// Obstacle now drawn as a little red crab (pure iDraw shapes, no images)
 inline void level2_drawCrab(float x, int y, int w, int h)
 {
 	float cx = x + w / 2.0f;
 	float cy = y + h / 2.0f;
 
-	// legs (drawn first so the body sits on top of them)
 	iSetColor(150, 20, 20);
 	for (int side = -1; side <= 1; side += 2) {
 		iLine((int)(cx + side * w * 0.10f), (int)(cy), (int)(cx + side * w * 0.55f), (int)(cy - h * 0.35f));
@@ -332,7 +307,6 @@ inline void level2_drawCrab(float x, int y, int w, int h)
 		iLine((int)(cx + side * w * 0.10f), (int)(cy + h * 0.20f), (int)(cx + side * w * 0.55f), (int)(cy + h * 0.45f));
 	}
 
-	// claws
 	iSetColor(220, 40, 40);
 	iFilledCircle(cx - w * 0.48f, cy, w * 0.16f);
 	iFilledCircle(cx + w * 0.48f, cy, w * 0.16f);
@@ -340,13 +314,11 @@ inline void level2_drawCrab(float x, int y, int w, int h)
 	iCircle(cx - w * 0.48f, cy, w * 0.16f);
 	iCircle(cx + w * 0.48f, cy, w * 0.16f);
 
-	// body
 	iSetColor(220, 40, 40);
 	iFilledCircle(cx, cy, w * 0.36f);
 	iSetColor(150, 20, 20);
 	iCircle(cx, cy, w * 0.36f);
 
-	// eye stalks
 	iSetColor(220, 40, 40);
 	iFilledRectangle(cx - w * 0.18f, cy + h * 0.15f, 4, 12);
 	iFilledRectangle(cx + w * 0.14f, cy + h * 0.15f, 4, 12);
@@ -401,25 +373,18 @@ inline void renderLevel2()
 		runFrames[6] = iLoadImage("Image/run_7.png");
 		runFrames[7] = iLoadImage("Image/run_8.png");
 
-		// 3 jump-pose images: 0 = launch (crouch/push-off), 1 = peak (legs tucked),
-		// 2 = falling/landing prep. Save your 3 chosen frames with these names.
 		jumpFrames[0] = iLoadImage("Image/jump_1.png");
 		jumpFrames[1] = iLoadImage("Image/jump_2.png");
 		jumpFrames[2] = iLoadImage("Image/jump_3.png");
 
-		// NEW: if any jump image failed to load, don't let the player vanish -
-		// fall back to the idle sprite while still doing the jump physics.
 		jumpImagesOK = (jumpFrames[0] >= 0 && jumpFrames[1] >= 0 && jumpFrames[2] >= 0);
 
-		// 4 distinct backgrounds shown behind each door once it is opened
 		doorRoomBg[0] = iLoadImage("Image/DoorBg1.png");
 		doorRoomBg[1] = iLoadImage("Image/DoorBg2.png");
 		doorRoomBg[2] = iLoadImage("Image/DoorBg3.png");
 		doorRoomBg[3] = iLoadImage("Image/DoorBg4.png");
 	}
 
-	// 1. Draw 2 seamless backgrounds sliding left (running phase) OR the
-	//    room background of the door currently being solved
 	if (level2_doorsVisible && level2_insideTask && level2_currentTaskDoor >= 0) {
 		iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, doorRoomBg[level2_currentTaskDoor]);
 	}
@@ -428,7 +393,6 @@ inline void renderLevel2()
 		iShowImage(level2_bgX + SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, UnderSeaBg);
 	}
 
-	// 2 & 3. Obstacles (crabs) and keys - only during the running phase
 	if (!level2_doorsVisible) {
 		for (int i = 0; i < LEVEL2_NUM_OBSTACLES; i++) {
 			if (level2_obstacles[i].active) {
@@ -445,17 +409,15 @@ inline void renderLevel2()
 		}
 	}
 
-	// 4. Draw Player (only during the running phase - once at the doors, player sprite is hidden)
 	if (!level2_doorsVisible) {
 		int playerImg;
-		if (level2_isJumping) playerImg = jumpImagesOK ? jumpFrames[level2_jumpFrameIndex] : idleImg; // NEW fallback
+		if (level2_isJumping) playerImg = jumpImagesOK ? jumpFrames[level2_jumpFrameIndex] : idleImg;
 		else if (level2_isMoving) playerImg = runFrames[level2_animFrame];
 		else playerImg = idleImg;
 
-		iShowImage(level2_playerX, level2_playerY, level2_playerWidth, level2_playerHeight, playerImg);
+		iShowImage((int)level2_playerX, (int)level2_playerY, level2_playerWidth, level2_playerHeight, playerImg);
 	}
 
-	// 5. Doors screen
 	if (level2_doorsVisible) {
 		if (!level2_insideTask) {
 			for (int i = 0; i < 4; i++) {
@@ -472,7 +434,6 @@ inline void renderLevel2()
 			}
 		}
 		else {
-			// ---- Mini-game UI for the door currently being solved ----
 			int t = level2_doorTaskType[level2_currentTaskDoor];
 			char buf[64];
 
@@ -527,7 +488,6 @@ inline void renderLevel2()
 		}
 	}
 
-	// 6. Keys-collected HUD (top-left) - only meaningful during running phase but kept visible
 	for (int i = 0; i < LEVEL2_NUM_KEYS; i++) {
 		int hx = 25 + i * 35, hy = 25;
 		if (level2_keyCollected[i])
@@ -541,7 +501,6 @@ inline void renderLevel2()
 	iSetColor(0, 0, 0);
 	iText(20, 50, "Keys Collected");
 
-	// 7. Energy Bar & Instructions
 	iSetColor(200, 200, 200);
 	iFilledRectangle(20, SCREEN_HEIGHT - 40, 200, 20);
 	iSetColor(0, 200, 0);
@@ -552,13 +511,12 @@ inline void renderLevel2()
 
 	iSetColor(0, 0, 0);
 	if (!level2_doorsVisible) {
-		iText(SCREEN_WIDTH / 2 - 150, SCREEN_HEIGHT - 40, "Hold RIGHT to run, SPACE to jump obstacles!");
+		iText(SCREEN_WIDTH / 2 - 160, SCREEN_HEIGHT - 40, "Hold RIGHT to run, UP ARROW to jump!");
 	}
 	else if (!level2_insideTask && !level2_gameOver && !level2_keyFound) {
 		iText(SCREEN_WIDTH / 2 - 170, SCREEN_HEIGHT - 40, "Ekta dorjaay ASHOL chabi ache - beche nao!");
 	}
 
-	// 8. Feedback message
 	if (level2_messageTimer > 0) {
 		iSetColor(220, 20, 20);
 		iText(SCREEN_WIDTH / 2 - 160, SCREEN_HEIGHT - 70, level2_message);
@@ -578,7 +536,16 @@ inline void level2_fixedUpdate()
 
 	level2_isMoving = false;
 
-	// While doors haven't appeared, holding RIGHT scrolls the background smooth and endless
+	// Upper Arrow দিয়ে জাম্প শুরু
+	if (!level2_doorsVisible && isSpecialKeyPressed(GLUT_KEY_UP)) {
+		if (!level2_isJumping) {
+			level2_isJumping = true;
+			level2_jumpVelocity = LEVEL2_JUMP_STRENGTH;
+			level2_playerY += 2.0f;
+		}
+	}
+
+	// Right Arrow দিয়ে রান
 	if (!level2_doorsVisible && isSpecialKeyPressed(GLUT_KEY_RIGHT)) {
 		level2_isMoving = true;
 
@@ -594,7 +561,7 @@ inline void level2_fixedUpdate()
 				level2_keys[i].spawned = true;
 				level2_keys[i].active = true;
 				level2_keys[i].x = (float)SCREEN_WIDTH + 20;
-				level2_keys[i].y = level2_groundY + 35;
+				level2_keys[i].y = (int)level2_groundY + 35;
 			}
 		}
 
@@ -603,7 +570,7 @@ inline void level2_fixedUpdate()
 				level2_obstacles[i].spawned = true;
 				level2_obstacles[i].active = true;
 				level2_obstacles[i].x = (float)SCREEN_WIDTH + 20;
-				level2_obstacles[i].y = level2_groundY + level2_playerHeight - level2_obstacles[i].height;
+				level2_obstacles[i].y = (int)level2_groundY;
 			}
 		}
 
@@ -612,29 +579,24 @@ inline void level2_fixedUpdate()
 		}
 	}
 
-	// Jump physics (usable while running, to dodge obstacles)
+	// ---------------- JUMP PHYSICS ----------------
 	if (level2_isJumping) {
-		level2_playerY += (int)lroundf(level2_jumpVelocity);   // CHANGED: round instead of truncate
-		level2_jumpVelocity += LEVEL2_GRAVITY;
+		level2_playerY += level2_jumpVelocity;
+		level2_jumpVelocity -= LEVEL2_GRAVITY;
 
-		// Pick the jump sprite based on vertical velocity:
-		// strongly negative = still launching upward, near zero = at the peak,
-		// positive = falling back down.
-		if (level2_jumpVelocity < -4.0f) level2_jumpFrameIndex = 0;
-		else if (level2_jumpVelocity <= 4.0f) level2_jumpFrameIndex = 1;
+		if (level2_jumpVelocity > 3.0f) level2_jumpFrameIndex = 0;
+		else if (level2_jumpVelocity >= -3.0f) level2_jumpFrameIndex = 1;
 		else level2_jumpFrameIndex = 2;
 
-		if (level2_playerY < 0) level2_playerY = 0; // NEW: don't let it fly off-screen
-
-		if (level2_playerY >= level2_groundY) {
-			level2_playerY = level2_groundY;   // back to the exact original resting position
+		if (level2_playerY <= level2_groundY) {
+			level2_playerY = level2_groundY;
 			level2_isJumping = false;
 			level2_jumpVelocity = 0.0f;
 			level2_jumpFrameIndex = 0;
 		}
 	}
 
-	// Move & resolve keys (collect on touch)
+	// Keys and Obstacles collision
 	if (!level2_doorsVisible) {
 		for (int i = 0; i < LEVEL2_NUM_KEYS; i++) {
 			if (!level2_keys[i].active) continue;
@@ -642,7 +604,7 @@ inline void level2_fixedUpdate()
 			level2_keys[i].x -= level2_playerSpeed;
 
 			if (!level2_keys[i].collected &&
-				level2_rectOverlap(level2_keys[i].x, level2_keys[i].y, level2_keys[i].size, level2_keys[i].size,
+				level2_rectOverlap(level2_keys[i].x, (float)level2_keys[i].y, level2_keys[i].size, level2_keys[i].size,
 				level2_playerX, level2_playerY, level2_playerWidth, level2_playerHeight)) {
 				level2_keys[i].collected = true;
 				level2_keys[i].active = false;
@@ -660,7 +622,7 @@ inline void level2_fixedUpdate()
 			level2_obstacles[i].x -= level2_playerSpeed;
 
 			if (!level2_obstacles[i].hit &&
-				level2_rectOverlap(level2_obstacles[i].x, level2_obstacles[i].y, level2_obstacles[i].width, level2_obstacles[i].height,
+				level2_rectOverlap(level2_obstacles[i].x, (float)level2_obstacles[i].y, level2_obstacles[i].width, level2_obstacles[i].height,
 				level2_playerX, level2_playerY, level2_playerWidth, level2_playerHeight)) {
 				level2_obstacles[i].hit = true;
 				level2_energy -= LEVEL2_OBSTACLE_DAMAGE;
@@ -676,7 +638,7 @@ inline void level2_fixedUpdate()
 		}
 	}
 
-	// Character Running Animation
+	// Animation
 	if (level2_isMoving) {
 		level2_animTimer++;
 		if (level2_animTimer >= LEVEL2_ANIM_FRAME_DELAY) {
@@ -695,7 +657,6 @@ inline void handleLevel2DoorClicks(int mx, int my)
 	if (level2_gameOver || level2_keyFound) return;
 	if (!level2_doorsVisible) return;
 
-	// ---- Currently solving a wrong-door mini-game: check the 4 option boxes ----
 	if (level2_insideTask) {
 		int t = level2_doorTaskType[level2_currentTaskDoor];
 
@@ -724,7 +685,7 @@ inline void handleLevel2DoorClicks(int mx, int my)
 						level2_gameOver = true;
 					}
 					else {
-						level2_generateTaskForDoor(level2_currentTaskDoor); // fresh numbers/colors to try again
+						level2_generateTaskForDoor(level2_currentTaskDoor);
 					}
 				}
 				return;
@@ -733,12 +694,11 @@ inline void handleLevel2DoorClicks(int mx, int my)
 		return;
 	}
 
-	// ---- Outside: choosing which door to open ----
 	for (int i = 0; i < 4; i++) {
 		if (level2_isInside(mx, my, level2_doors[i])) {
 			if (i == level2_realKeyDoor) {
 				level2_doors[i].visited = true;
-				level2_keyFound = true; // WIN - real key found
+				level2_keyFound = true;
 			}
 			else if (!level2_doors[i].visited) {
 				level2_currentTaskDoor = i;
@@ -754,20 +714,25 @@ inline void handleLevel2DoorClicks(int mx, int my)
 	}
 }
 
+// Special keyboard handler for UP arrow
+inline void handleLevel2SpecialKeyboard(unsigned char key)
+{
+	if (key == GLUT_KEY_UP) {
+		if (level2_gameOver || level2_keyFound) return;
+		if (level2_doorsVisible) return;
+		if (!level2_isJumping) {
+			level2_isJumping = true;
+			level2_jumpVelocity = LEVEL2_JUMP_STRENGTH;
+			level2_playerY += 2.0f;
+		}
+	}
+}
+
 inline void handleLevel2Keyboard(unsigned char key)
 {
 	if (key == 'r' || key == 'R') {
 		setupLevel2();
 		return;
-	}
-
-	if (key == ' ') {
-		if (level2_gameOver || level2_keyFound) return;
-		if (level2_doorsVisible) return;
-		if (level2_isJumping) return;
-
-		level2_isJumping = true;
-		level2_jumpVelocity = LEVEL2_JUMP_STRENGTH;
 	}
 }
 
