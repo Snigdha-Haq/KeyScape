@@ -1,5 +1,6 @@
 ﻿#ifndef OPTION_H_INCLUDED
 #define OPTION_H_INCLUDED
+
 extern int gameState; // shared variable from main.cpp
 
 // Back Button Position & Size
@@ -18,15 +19,21 @@ inline void renderOptionPage() {
 	// bg image
 	iShowImage(0, 0, 1000, 600, optionBgImg);
 
+	// মাঝ বরাবর কন্ট্রোল নির্দেশিকা টেক্সট (কালো রঙ, একই সাইজ ও ফন্ট)
+	iSetColor(0, 0, 0);
 
-	/*iSetColor(255, 255, 255);
-	iText(350, 230, "Arrow Keys   : Movement", GLUT_BITMAP_HELVETICA_18);
-	iText(350, 180, "A                    : Light Attack", GLUT_BITMAP_HELVETICA_18);
-	iText(350, 130, "S                    : Heavy Attack", GLUT_BITMAP_HELVETICA_18);
-	iText(350, 80, "Space            : Jump / Build Bridge", GLUT_BITMAP_HELVETICA_18);
-	iText(350, 30, "P                    : Drop Bridge", GLUT_BITMAP_HELVETICA_18);*/
-	//iSetColor(0, 0, 0);
-	//iText(750, 50, "Back", GLUT_BITMAP_HELVETICA_18);
+	// 1. UP : Jump
+	iText(420, 360, "UP     :  Jump", GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(421, 360, "UP     :  Jump", GLUT_BITMAP_TIMES_ROMAN_24); // বোল্ড এফেক্ট
+
+	// 2. DN : Slide
+	iText(420, 300, "DN     :  Slide", GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(421, 300, "DN     :  Slide", GLUT_BITMAP_TIMES_ROMAN_24);
+
+	// 3. RIGHT : Run
+	iText(420, 240, "RIGHT  :  Run", GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(421, 240, "RIGHT  :  Run", GLUT_BITMAP_TIMES_ROMAN_24);
+
 	// Back Button render
 	if (backBtnImg != -1) {
 		iShowImage(BACK_BTN_X, BACK_BTN_Y, BACK_BTN_WIDTH, BACK_BTN_HEIGHT, backBtnImg);
@@ -39,6 +46,7 @@ inline void renderOptionPage() {
 		iText(BACK_BTN_X + 10, BACK_BTN_Y + 12, "<--", GLUT_BITMAP_HELVETICA_18);
 	}
 }
+
 // click at Back Button to back Home Screen
 inline void handleOptionClicks(int mx, int my) {
 	if (mx >= BACK_BTN_X && mx <= BACK_BTN_X + BACK_BTN_WIDTH &&
@@ -46,4 +54,5 @@ inline void handleOptionClicks(int mx, int my) {
 		gameState = 0; // Go back to Home Screen
 	}
 }
+
 #endif
