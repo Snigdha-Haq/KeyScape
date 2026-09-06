@@ -1,4 +1,8 @@
 ﻿#include "iGraphics.h"
+#include <windows.h>
+#include <mmsystem.h>
+#pragma comment(lib, "winmm.lib")
+
 #include "level1.h"
 #include "level2.h"
 #include "option.h"
@@ -10,10 +14,66 @@ int x = 0;
 int y = 0;
 int gameState = 0; // 0 = Home, 1 = Level1, 2 = Option, 3 = Highscore, 4 = Credit, 5 = Play/Difficulty select, 6 = Level2
 
+static bool isBgMusicPlaying = false;
+static bool isMainMenuMusicPlaying = false;
+
+// ---------------- ইন-গেম ব্যাকগ্রাউন্ড মিউজিক ----------------
+inline void playBgMusic() {
+	if (!isBgMusicPlaying) {
+		mciSendString("close bgMusic", NULL, 0, NULL);
+		mciSendString("open \"Audios/movement.mp3\" type mpegvideo alias bgMusic", NULL, 0, NULL);
+		mciSendString("play bgMusic repeat", NULL, 0, NULL);
+		isBgMusicPlaying = true;
+	}
+}
+
+inline void stopBgMusic() {
+	if (isBgMusicPlaying) {
+		mciSendString("stop bgMusic", NULL, 0, NULL);
+		mciSendString("close bgMusic", NULL, 0, NULL);
+		isBgMusicPlaying = false;
+	}
+}
+
+// ---------------- মেইন মেনু ও অপশন ব্যাকগ্রাউন্ড মিউজিক ----------------
+inline void playMainMenuMusic() {
+	if (!isMainMenuMusicPlaying) {
+		mciSendString("close mainMusic", NULL, 0, NULL);
+		mciSendString("open \"Audios/mainSound.MP3\" type mpegvideo alias mainMusic", NULL, 0, NULL);
+		mciSendString("play mainMusic repeat", NULL, 0, NULL);
+		isMainMenuMusicPlaying = true;
+	}
+}
+
+inline void stopMainMenuMusic() {
+	if (isMainMenuMusicPlaying) {
+		mciSendString("stop mainMusic", NULL, 0, NULL);
+		mciSendString("close mainMusic", NULL, 0, NULL);
+		isMainMenuMusicPlaying = false;
+	}
+}
+
 void iDraw()
 {
 	iClear();
 	static int lastGameState = -1;
+
+	// অডিও ট্রানজিশন ম্যানেজমেন্ট:
+	// ১. গেমপ্লে স্ক্রিন (লেভেল ১ বা লেভেল ২)
+	if ((gameState == 1 || gameState == 6) && !level2_gameOver && !level2_keyFound) {
+		stopMainMenuMusic();
+		playBgMusic();
+	}
+	// ২. মেনু ও অন্যান্য সব পেজ (Home, Option, Highscore, Credit, Difficulty Select)
+	else if (gameState == 0 || gameState == 2 || gameState == 3 || gameState == 4 || gameState == 5) {
+		stopBgMusic();
+		playMainMenuMusic();
+	}
+	// ৩. গেম ওভার বা উইন হলে সব ব্যাকগ্রাউন্ড মিউজিক থামবে
+	else {
+		stopBgMusic();
+		stopMainMenuMusic();
+	}
 
 	if (gameState == 0) {
 		renderHomepage();
@@ -91,7 +151,7 @@ void iKeyboard(unsigned char key)
 	if (gameState == 6) {
 		handleLevel2Keyboard(key);
 	}
-	if (key == 27) { // ESC to return Home
+	if (key == 27) { // ESC চেপে হোমে ফেরা
 		gameState = 0;
 	}
 }
@@ -107,5 +167,9 @@ int main()
 	iSetTimer(20, fixedUpdate);
 	iInitialize(1000, 600, "KeyScape");
 	iStart();
+
+	// গেম উইন্ডো বন্ধ হলে অডিও ক্লিনআপ
+	stopBgMusic();
+	stopMainMenuMusic();
 	return 0;
 }

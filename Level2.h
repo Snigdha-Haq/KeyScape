@@ -6,11 +6,41 @@
 #include <ctime>
 #include <cstdio>
 #include <cstring>
+#include <windows.h>
+#include <mmsystem.h>
+#pragma comment(lib, "winmm.lib")
 
 #ifndef SCREEN_WIDTH
 #define SCREEN_WIDTH 1000
 #define SCREEN_HEIGHT 600
 #endif
+
+extern int gameState;
+
+// ---------------- SOUND EFFECT HELPERS ----------------
+inline void playPlusPointSound() {
+	mciSendString("close sfx_plus", NULL, 0, NULL);
+	mciSendString("open \"Audios/plusPoint.MP3\" type mpegvideo alias sfx_plus", NULL, 0, NULL);
+	mciSendString("play sfx_plus from 0", NULL, 0, NULL);
+}
+
+inline void playNegPointSound() {
+	mciSendString("close sfx_neg", NULL, 0, NULL);
+	mciSendString("open \"Audios/negPoint.MP3\" type mpegvideo alias sfx_neg", NULL, 0, NULL);
+	mciSendString("play sfx_neg from 0", NULL, 0, NULL);
+}
+
+inline void playWinSound() {
+	mciSendString("close sfx_win", NULL, 0, NULL);
+	mciSendString("open \"Audios/win_and_lose_melodies_-_arranged_win.MP3\" type mpegvideo alias sfx_win", NULL, 0, NULL);
+	mciSendString("play sfx_win from 0", NULL, 0, NULL);
+}
+
+inline void playLoseSound() {
+	mciSendString("close sfx_lose", NULL, 0, NULL);
+	mciSendString("open \"Audios/win_and_lose_melodies_-_arranged_lose.MP3\" type mpegvideo alias sfx_lose", NULL, 0, NULL);
+	mciSendString("play sfx_lose from 0", NULL, 0, NULL);
+}
 
 // ---------------- BASIC LEVEL STATE ----------------
 static float level2_playerX = 100.0f;
@@ -57,11 +87,37 @@ static int level2_jumpFrameIndex = 0;
 int level2_energy = 100;
 bool level2_gameOver = false;
 bool level2_keyFound = false;
+static bool level2_isPaused = false;
+static bool level2_hasPlayedEndAudio = false;
 
-// ---------------- SCORE & PERSISTENT HIGH SCORE ----------------
+// ---------------- IN-GAME SETTINGS POPUP MENU ----------------
+static bool level2_showSettingsMenu = false;
+#define LEVEL2_SETTING_BTN_X 945
+#define LEVEL2_SETTING_BTN_Y 45
+#define LEVEL2_SETTING_BTN_R 22
+
+#define LEVEL2_SUB_BTN_R     20
+#define LEVEL2_SUB_R_Y       110
+#define LEVEL2_SUB_P_Y       165
+#define LEVEL2_SUB_M_Y       220
+
+// ---------------- SCORE & 2X MULTIPLIER ----------------
 int level2_score = 0;
 int level2_highScore = 0;
 static bool level2_highScoreLoaded = false;
+
+static int level2_scoreMultiplier = 1;
+static int level2_multiplierTimer = 0; // Frames remaining for 2X effect
+
+// ---------------- 2X FLOATING ORB ----------------
+struct Level2PowerUp {
+	float x, y;
+	int size;
+	bool active;
+	float speed;
+};
+static Level2PowerUp level2_power2x;
+static int level2_powerSpawnCounter = 0;
 
 inline void level2_loadHighScore()
 {
@@ -86,7 +142,14 @@ inline void level2_saveHighScore()
 
 inline void level2_updateScore(int addPoints)
 {
-	level2_score += addPoints;
+	if (addPoints > 0) {
+		level2_score += (addPoints * level2_scoreMultiplier);
+	}
+	else {
+		level2_score += addPoints; // Score deduction
+		if (level2_score < 0) level2_score = 0;
+	}
+
 	if (level2_score > level2_highScore) {
 		level2_highScore = level2_score;
 		level2_saveHighScore();
@@ -138,12 +201,11 @@ static Level2Obstacle level2_obstacles[LEVEL2_NUM_OBSTACLES];
 static int level2_obstacleSpawnDistance[LEVEL2_NUM_OBSTACLES] = {
 	450, 950, 1500, 1950, 2600, 3100, 3600, 4200, 4700, 5300, 5800, 6300
 };
-#define LEVEL2_OBSTACLE_DAMAGE 22
 
 char level2_message[120] = "";
 int level2_messageTimer = 0;
 
-// Include Doors Header after shared variables definition
+// Shared header for Level 2 doors
 #include "L2doors.h"
 
 // ---------------- TEXT HELPERS ----------------
@@ -163,6 +225,75 @@ inline bool level2_rectOverlap(float ax, float ay, int aw, int ah, float bx, flo
 inline void level2_drawKey(float x, float y, int size, int r, int g, int b)
 {
 	level2_drawKeyVisual(x, y, size, r, g, b);
+}
+
+// ---------------- 2X ORB DRAWING ----------------
+inline void level2_draw2XOrb(float x, float y)
+{
+	// Outer glow circle
+	iSetColor(255, 215, 0);
+	iFilledCircle(x + 20, y + 20, 24);
+	iSetColor(255, 140, 0);
+	iCircle(x + 20, y + 20, 24);
+	iCircle(x + 20, y + 20, 25);
+
+	// Inner core
+	iSetColor(255, 255, 230);
+	iFilledCircle(x + 20, y + 20, 18);
+
+	// "2X" text
+	iSetColor(180, 20, 10);
+	level2_drawBoldText((int)x + 10, (int)y + 12, "2X", GLUT_BITMAP_TIMES_ROMAN_24);
+}
+
+inline void level2_drawSettingsUI()
+{
+	iSetColor(30, 45, 65);
+	iFilledCircle(LEVEL2_SETTING_BTN_X, LEVEL2_SETTING_BTN_Y, LEVEL2_SETTING_BTN_R);
+	iSetColor(255, 255, 255);
+	iCircle(LEVEL2_SETTING_BTN_X, LEVEL2_SETTING_BTN_Y, LEVEL2_SETTING_BTN_R);
+
+	for (int i = 0; i < 8; i++) {
+		float angle = (float)i * 3.14159f / 4.0f;
+		int x1 = LEVEL2_SETTING_BTN_X + (int)(cosf(angle) * 12.0f);
+		int y1 = LEVEL2_SETTING_BTN_Y + (int)(sinf(angle) * 12.0f);
+		int x2 = LEVEL2_SETTING_BTN_X + (int)(cosf(angle) * 20.0f);
+		int y2 = LEVEL2_SETTING_BTN_Y + (int)(sinf(angle) * 20.0f);
+		iLine(x1, y1, x2, y2);
+	}
+	iSetColor(230, 240, 255);
+	iFilledCircle(LEVEL2_SETTING_BTN_X, LEVEL2_SETTING_BTN_Y, 8);
+	iSetColor(30, 45, 65);
+	iFilledCircle(LEVEL2_SETTING_BTN_X, LEVEL2_SETTING_BTN_Y, 4);
+
+	if (level2_showSettingsMenu) {
+		// Restart 'R'
+		iSetColor(220, 50, 50);
+		iFilledCircle(LEVEL2_SETTING_BTN_X, LEVEL2_SUB_R_Y, LEVEL2_SUB_BTN_R);
+		iSetColor(255, 255, 255);
+		iCircle(LEVEL2_SETTING_BTN_X, LEVEL2_SUB_R_Y, LEVEL2_SUB_BTN_R);
+		level2_drawBoldText(LEVEL2_SETTING_BTN_X - 6, LEVEL2_SUB_R_Y - 7, "R", GLUT_BITMAP_TIMES_ROMAN_24);
+
+		// Pause 'P'
+		iSetColor(50, 130, 220);
+		iFilledCircle(LEVEL2_SETTING_BTN_X, LEVEL2_SUB_P_Y, LEVEL2_SUB_BTN_R);
+		iSetColor(255, 255, 255);
+		iCircle(LEVEL2_SETTING_BTN_X, LEVEL2_SUB_P_Y, LEVEL2_SUB_BTN_R);
+		level2_drawBoldText(LEVEL2_SETTING_BTN_X - 6, LEVEL2_SUB_P_Y - 7, "P", GLUT_BITMAP_TIMES_ROMAN_24);
+
+		// Menu 'M'
+		iSetColor(45, 175, 75);
+		iFilledCircle(LEVEL2_SETTING_BTN_X, LEVEL2_SUB_M_Y, LEVEL2_SUB_BTN_R);
+		iSetColor(255, 255, 255);
+		iCircle(LEVEL2_SETTING_BTN_X, LEVEL2_SUB_M_Y, LEVEL2_SUB_BTN_R);
+		level2_drawBoldText(LEVEL2_SETTING_BTN_X - 8, LEVEL2_SUB_M_Y - 7, "M", GLUT_BITMAP_TIMES_ROMAN_24);
+	}
+
+	if (level2_isPaused && !level2_gameOver && !level2_keyFound) {
+		iSetColor(0, 0, 0);
+		iText(SCREEN_WIDTH / 2 - 80, SCREEN_HEIGHT / 2 + 30, "GAME PAUSED", GLUT_BITMAP_TIMES_ROMAN_24);
+		iText(SCREEN_WIDTH / 2 - 120, SCREEN_HEIGHT / 2, "Click 'P' or press 'P' to Resume", GLUT_BITMAP_HELVETICA_18);
+	}
 }
 
 // ---------------- SETUP & RESET ----------------
@@ -189,9 +320,21 @@ inline void setupLevel2()
 	level2_facingRight = true;
 
 	level2_score = 0;
+	level2_scoreMultiplier = 1;
+	level2_multiplierTimer = 0;
+
+	level2_power2x.active = false;
+	level2_power2x.size = 40;
+	level2_power2x.speed = 4.2f;
+	level2_powerSpawnCounter = 0;
+
 	level2_energy = 100;
 	level2_gameOver = false;
 	level2_keyFound = false;
+	level2_isPaused = false;
+	level2_showSettingsMenu = false;
+	level2_hasPlayedEndAudio = false;
+
 	level2_isMoving = false;
 	level2_animFrame = 0;
 	level2_animTimer = 0;
@@ -293,6 +436,11 @@ inline void renderLevel2()
 
 	// 1. GAME OVER SCREEN
 	if (level2_gameOver) {
+		if (!level2_hasPlayedEndAudio) {
+			playLoseSound();
+			level2_hasPlayedEndAudio = true;
+		}
+
 		if (bgSeaOutImg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bgSeaOutImg);
 		else {
 			iSetColor(225, 230, 235);
@@ -307,16 +455,17 @@ inline void renderLevel2()
 		iSetColor(15, 35, 75);
 		level2_drawBoldText(390, 315, endScoreBuf, GLUT_BITMAP_HELVETICA_18);
 
-		iSetColor(215, 65, 45);
-		iFilledRectangle(380, 245, 290, 38);
-		iSetColor(255, 255, 255);
-		iRectangle(380, 245, 290, 38);
-		level2_drawBoldText(402, 257, "Click or Press 'R' to Restart", GLUT_BITMAP_HELVETICA_18);
+		level2_drawSettingsUI();
 		return;
 	}
 
 	// 2. VICTORY SCREEN
 	if (level2_keyFound && level2_finishStage == 3) {
+		if (!level2_hasPlayedEndAudio) {
+			playWinSound();
+			level2_hasPlayedEndAudio = true;
+		}
+
 		if (bgSeaScoreImg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bgSeaScoreImg);
 		else {
 			iSetColor(15, 35, 55);
@@ -332,10 +481,12 @@ inline void renderLevel2()
 		sprintf_s(highScoreBuf, sizeof(highScoreBuf), "HighScore: %d", level2_highScore);
 		iSetColor(255, 240, 180);
 		level2_drawBoldText(395, 125, highScoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+
+		level2_drawSettingsUI();
 		return;
 	}
 
-	// 3. BACKGROUND (GAMEPLAY)
+	// 3. BACKGROUND (GAMEPLAY & TASKS)
 	if (level2_doorsVisible && level2_finishStage >= 1) {
 		if (bgPearlImg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bgPearlImg);
 		else iShowImage(level2_bgX, 0, SCREEN_WIDTH, SCREEN_HEIGHT, UnderSeaBg);
@@ -355,7 +506,7 @@ inline void renderLevel2()
 		iShowImage(level2_bgX + SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, UnderSeaBg);
 	}
 
-	// 4. Obstacles and Keys
+	// 4. Obstacles, Keys & 2X Power-up
 	if (!level2_doorsVisible) {
 		for (int i = 0; i < LEVEL2_NUM_OBSTACLES; i++) {
 			if (level2_obstacles[i].active) {
@@ -375,6 +526,11 @@ inline void renderLevel2()
 						level2_keyColor[i][0], level2_keyColor[i][1], level2_keyColor[i][2]);
 				}
 			}
+		}
+
+		// Draw Floating 2X Orb
+		if (level2_power2x.active) {
+			level2_draw2XOrb(level2_power2x.x, level2_power2x.y);
 		}
 	}
 
@@ -397,7 +553,7 @@ inline void renderLevel2()
 		iShowImage((int)level2_playerX, (int)level2_playerY, level2_playerWidth, level2_playerHeight, playerImg);
 	}
 
-	// 6. Doors & Tasks (Rendered via L2doors.h)
+	// 6. Doors & Tasks
 	renderLevel2DoorsContent(doorClosedImg, doorOpenImg);
 
 	// 7. HUD Display
@@ -423,11 +579,18 @@ inline void renderLevel2()
 	iRectangle(20, SCREEN_HEIGHT - 40, 200, 20);
 	iText(20, SCREEN_HEIGHT - 55, "Energy");
 
-	// Live Score
+	// Live Score & 2X Multiplier Indicator
 	char scoreBuf[64];
 	iSetColor(0, 0, 0);
 	sprintf_s(scoreBuf, sizeof(scoreBuf), "Score: %d", level2_score);
 	level2_drawBoldText(SCREEN_WIDTH - 150, SCREEN_HEIGHT - 40, scoreBuf, GLUT_BITMAP_HELVETICA_18);
+
+	if (level2_scoreMultiplier == 2) {
+		iSetColor(255, 140, 0);
+		char multBuf[32];
+		sprintf_s(multBuf, sizeof(multBuf), "2X ACTIVE! (%ds)", (level2_multiplierTimer / 50) + 1);
+		level2_drawBoldText(SCREEN_WIDTH - 170, SCREEN_HEIGHT - 65, multBuf, GLUT_BITMAP_HELVETICA_18);
+	}
 
 	if (!level2_doorsVisible) {
 		iText(SCREEN_WIDTH / 2 - 200, SCREEN_HEIGHT - 40, "UP to Jump (Ground), DOWN to Slide (Air)!");
@@ -440,19 +603,40 @@ inline void renderLevel2()
 		iSetColor(220, 20, 20);
 		level2_drawBoldText(SCREEN_WIDTH / 2 - 180, SCREEN_HEIGHT - 70, level2_message, GLUT_BITMAP_HELVETICA_18);
 	}
+
+	// 8. Settings UI
+	level2_drawSettingsUI();
 }
 
 inline void level2_fixedUpdate()
 {
-	if (level2_gameOver || level2_keyFound) {
-		if (isKeyPressed('r') || isKeyPressed('R')) {
-			setupLevel2();
-			return;
-		}
+	if (level2_isPaused || level2_gameOver || level2_keyFound) {
 		return;
 	}
 
 	level2_shineTimer += 1.0f;
+
+	// 2X Multiplier Countdown (500 frames * 20ms = 10 Seconds)
+	if (level2_multiplierTimer > 0) {
+		level2_multiplierTimer--;
+		if (level2_multiplierTimer <= 0) {
+			level2_scoreMultiplier = 1;
+		}
+	}
+
+	// Floating 2X Orb Spawn Check (every ~7-10 seconds randomly)
+	if (!level2_doorsVisible && !level2_power2x.active) {
+		level2_powerSpawnCounter++;
+		if (level2_powerSpawnCounter >= 350) { // ~7 seconds interval
+			if (rand() % 100 < 30) {
+				level2_power2x.active = true;
+				level2_power2x.x = (float)SCREEN_WIDTH + 50.0f;
+				// Randomly spawn from Top (215px) or Bottom (100px)
+				level2_power2x.y = (rand() % 2 == 0) ? 215.0f : 100.0f;
+				level2_powerSpawnCounter = 0;
+			}
+		}
+	}
 
 	if (level2_finishStage >= 2 && level2_clamOpenAngle < 80.0f) {
 		level2_clamOpenAngle += 2.5f;
@@ -509,6 +693,7 @@ inline void level2_fixedUpdate()
 			level2_doorsVisible = true;
 		}
 	}
+	// Backward Movement
 	else if (!level2_doorsVisible && !level2_isSliding && isSpecialKeyPressed(GLUT_KEY_LEFT)) {
 		if (level2_distanceCovered > 0) {
 			level2_isMoving = true;
@@ -521,6 +706,14 @@ inline void level2_fixedUpdate()
 
 			level2_distanceCovered -= level2_playerSpeed;
 			extraMoveEnemies = -(float)level2_playerSpeed;
+		}
+	}
+
+	// Autonomous 2X Orb Movement
+	if (level2_power2x.active) {
+		level2_power2x.x -= (level2_power2x.speed + extraMoveEnemies);
+		if (level2_power2x.x < -60) {
+			level2_power2x.active = false;
 		}
 	}
 
@@ -577,6 +770,20 @@ inline void level2_fixedUpdate()
 				level2_keys[i].collected = true;
 				level2_keyCollected[level2_keys[i].id] = true;
 				level2_updateScore(150);
+				playPlusPointSound();
+			}
+		}
+
+		// 2X Power-Up Pickup
+		if (level2_power2x.active) {
+			if (level2_rectOverlap(level2_power2x.x, level2_power2x.y, level2_power2x.size, level2_power2x.size,
+				level2_playerX, level2_playerY, level2_playerWidth, level2_playerHeight)) {
+				level2_power2x.active = false;
+				level2_scoreMultiplier = 2;
+				level2_multiplierTimer = 500; // 500 frames * 20ms = 10 Seconds
+				strcpy_s(level2_message, sizeof(level2_message), "2X SCORE BOOST ACTIVATED FOR 10 SECONDS!");
+				level2_messageTimer = 70;
+				playPlusPointSound();
 			}
 		}
 
@@ -586,7 +793,31 @@ inline void level2_fixedUpdate()
 			if (level2_rectOverlap(level2_obstacles[i].x, level2_obstacles[i].y, level2_obstacles[i].width, level2_obstacles[i].height,
 				level2_playerX, level2_playerY, level2_playerWidth, level2_playerHeight)) {
 				level2_obstacles[i].hit = true;
-				level2_energy -= LEVEL2_OBSTACLE_DAMAGE;
+
+				int damageEnergy = 15;
+				int deductScore = 100;
+
+				if (level2_obstacles[i].type == 0) { // Crab
+					damageEnergy = 15;
+					deductScore = 100;
+					strcpy_s(level2_message, sizeof(level2_message), "Hit Crab! -100 Score, -15 Energy");
+				}
+				else if (level2_obstacles[i].type == 1) { // Octopus
+					damageEnergy = 22;
+					deductScore = 200;
+					strcpy_s(level2_message, sizeof(level2_message), "Hit Octopus! -200 Score, -22 Energy");
+				}
+				else if (level2_obstacles[i].type == 2) { // Seahorse
+					damageEnergy = 18;
+					deductScore = 150;
+					strcpy_s(level2_message, sizeof(level2_message), "Hit Seahorse! -150 Score, -18 Energy");
+				}
+
+				level2_messageTimer = 60;
+				level2_energy -= damageEnergy;
+				level2_updateScore(-deductScore);
+				playNegPointSound();
+
 				if (level2_energy <= 0) {
 					level2_energy = 0;
 					level2_gameOver = true;
@@ -610,19 +841,48 @@ inline void level2_fixedUpdate()
 
 inline void handleLevel2DoorClicks(int mx, int my)
 {
-	if (level2_gameOver) {
-		if (mx >= 380 && mx <= 670 && my >= 245 && my <= 285) {
-			setupLevel2();
-		}
+	float distSettings = sqrtf((float)((mx - LEVEL2_SETTING_BTN_X) * (mx - LEVEL2_SETTING_BTN_X) +
+		(my - LEVEL2_SETTING_BTN_Y) * (my - LEVEL2_SETTING_BTN_Y)));
+	if (distSettings <= LEVEL2_SETTING_BTN_R) {
+		level2_showSettingsMenu = !level2_showSettingsMenu;
 		return;
 	}
+
+	if (level2_showSettingsMenu) {
+		float distR = sqrtf((float)((mx - LEVEL2_SETTING_BTN_X) * (mx - LEVEL2_SETTING_BTN_X) +
+			(my - LEVEL2_SUB_R_Y) * (my - LEVEL2_SUB_R_Y)));
+		if (distR <= LEVEL2_SUB_BTN_R) {
+			setupLevel2();
+			return;
+		}
+
+		float distP = sqrtf((float)((mx - LEVEL2_SETTING_BTN_X) * (mx - LEVEL2_SETTING_BTN_X) +
+			(my - LEVEL2_SUB_P_Y) * (my - LEVEL2_SUB_P_Y)));
+		if (distP <= LEVEL2_SUB_BTN_R) {
+			level2_isPaused = !level2_isPaused;
+			return;
+		}
+
+		float distM = sqrtf((float)((mx - LEVEL2_SETTING_BTN_X) * (mx - LEVEL2_SETTING_BTN_X) +
+			(my - LEVEL2_SUB_M_Y) * (my - LEVEL2_SUB_M_Y)));
+		if (distM <= LEVEL2_SUB_BTN_R) {
+			gameState = 5;
+			return;
+		}
+	}
+
+	if (level2_gameOver) {
+		return;
+	}
+
+	if (level2_isPaused) return;
 
 	handleL2DoorClicks(mx, my);
 }
 
 inline void handleLevel2SpecialKeyboard(unsigned char key)
 {
-	if (level2_gameOver || level2_keyFound) return;
+	if (level2_isPaused || level2_gameOver || level2_keyFound) return;
 	if (level2_doorsVisible) return;
 
 	if (key == GLUT_KEY_UP) {
@@ -646,6 +906,12 @@ inline void handleLevel2Keyboard(unsigned char key)
 {
 	if (key == 'r' || key == 'R') {
 		setupLevel2();
+	}
+	else if (key == 'p' || key == 'P') {
+		level2_isPaused = !level2_isPaused;
+	}
+	else if (key == 'm' || key == 'M') {
+		gameState = 5;
 	}
 }
 

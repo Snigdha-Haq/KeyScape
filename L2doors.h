@@ -1,4 +1,4 @@
-#ifndef L2DOORS_H_INCLUDED
+﻿#ifndef L2DOORS_H_INCLUDED
 #define L2DOORS_H_INCLUDED
 
 #include <cmath>
@@ -6,6 +6,9 @@
 #include <ctime>
 #include <cstdio>
 #include <cstring>
+#include <windows.h>
+#include <mmsystem.h>
+#pragma comment(lib, "winmm.lib")
 
 #ifndef SCREEN_WIDTH
 #define SCREEN_WIDTH 1000
@@ -22,6 +25,10 @@ extern char level2_message[120];
 extern int level2_messageTimer;
 
 void level2_updateScore(int addPoints);
+
+// Sound functions declared in level2.h
+void playPlusPointSound();
+void playNegPointSound();
 
 // ---------------- DOORS DATA & SETUP ----------------
 struct Level2Door {
@@ -452,11 +459,13 @@ inline void handleL2DoorClicks(int mx, int my)
 					level2_insideTask = false;
 					level2_currentTaskDoor = -1;
 					level2_updateScore(200);
+					playPlusPointSound(); // সঠিক উত্তরে plusPoint.MP3 বাজবে
 					strcpy_s(level2_message, sizeof(level2_message), "Correct! Door unlocked - Select another door.");
 					level2_messageTimer = 100;
 				}
 				else {
 					level2_energy -= LEVEL2_WRONG_TASK_PENALTY;
+					playNegPointSound(); // ভুল উত্তরে negPoint.MP3 বাজবে
 					strcpy_s(level2_message, sizeof(level2_message), "Wrong answer! Try again.");
 					level2_messageTimer = 70;
 					if (level2_energy <= 0) {
@@ -478,6 +487,7 @@ inline void handleL2DoorClicks(int mx, int my)
 			int requiredKey = level2_doors[i].assignedKeyColorId;
 
 			if (!level2_keyCollected[requiredKey]) {
+				playNegPointSound(); // চাবি না থাকলে negPoint.MP3 বাজবে
 				strcpy_s(level2_message, sizeof(level2_message), "Key missing! Go back and collect the matching key.");
 				level2_messageTimer = 90;
 				return;
