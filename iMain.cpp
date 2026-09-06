@@ -1,9 +1,10 @@
 ﻿#include "iGraphics.h"
-#include "homepage.h"
 #include "level1.h"
 #include "level2.h"
 #include "option.h"
 #include "playbutton.h"
+#include "score-board.h"
+#include "homepage.h"
 
 int x = 0;
 int y = 0;
@@ -27,8 +28,7 @@ void iDraw()
 		renderOptionPage();
 	}
 	else if (gameState == 3) {
-		iSetColor(255, 255, 255);
-		iText(410, 300, "Highscore Screen (placeholder)");
+		renderHighscorePage();
 	}
 	else if (gameState == 4) {
 		iSetColor(255, 255, 255);
@@ -63,6 +63,9 @@ void iMouse(int button, int state, int mx, int my)
 		else if (gameState == 2) {
 			handleOptionClicks(mx, my);
 		}
+		else if (gameState == 3) {
+			handleHighscoreClicks(mx, my);
+		}
 		else if (gameState == 5) {
 			handlePlayButtonClicks(mx, my);
 		}
@@ -88,7 +91,7 @@ void iKeyboard(unsigned char key)
 	if (gameState == 6) {
 		handleLevel2Keyboard(key);
 	}
-	if (key == 27) { // ESC
+	if (key == 27) { // ESC to return Home
 		gameState = 0;
 	}
 }

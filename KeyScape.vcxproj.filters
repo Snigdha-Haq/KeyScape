@@ -35,5 +35,11 @@
     <ClInclude Include="Level2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="score-board.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="L2doors.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
