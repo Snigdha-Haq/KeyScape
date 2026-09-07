@@ -205,7 +205,7 @@ static int level2_obstacleSpawnDistance[LEVEL2_NUM_OBSTACLES] = {
 char level2_message[120] = "";
 int level2_messageTimer = 0;
 
-// Shared header for Level 2 doors
+// Shared header for Level 2 doors & Guardian Combat
 #include "L2doors.h"
 
 // ---------------- TEXT HELPERS ----------------
@@ -230,18 +230,15 @@ inline void level2_drawKey(float x, float y, int size, int r, int g, int b)
 // ---------------- 2X ORB DRAWING ----------------
 inline void level2_draw2XOrb(float x, float y)
 {
-	// Outer glow circle
 	iSetColor(255, 215, 0);
 	iFilledCircle(x + 20, y + 20, 24);
 	iSetColor(255, 140, 0);
 	iCircle(x + 20, y + 20, 24);
 	iCircle(x + 20, y + 20, 25);
 
-	// Inner core
 	iSetColor(255, 255, 230);
 	iFilledCircle(x + 20, y + 20, 18);
 
-	// "2X" text
 	iSetColor(180, 20, 10);
 	level2_drawBoldText((int)x + 10, (int)y + 12, "2X", GLUT_BITMAP_TIMES_ROMAN_24);
 }
@@ -553,7 +550,7 @@ inline void renderLevel2()
 		iShowImage((int)level2_playerX, (int)level2_playerY, level2_playerWidth, level2_playerHeight, playerImg);
 	}
 
-	// 6. Doors & Tasks
+	// 6. Doors & Tasks (Combats also render inside here)
 	renderLevel2DoorsContent(doorClosedImg, doorOpenImg);
 
 	// 7. HUD Display
@@ -595,7 +592,7 @@ inline void renderLevel2()
 	if (!level2_doorsVisible) {
 		iText(SCREEN_WIDTH / 2 - 200, SCREEN_HEIGHT - 40, "UP to Jump (Ground), DOWN to Slide (Air)!");
 	}
-	else if (!level2_insideTask && level2_finishStage == 0) {
+	else if (!level2_insideTask && level2_finishStage == 0 && !level2combat_active) {
 		iText(SCREEN_WIDTH / 2 - 180, SCREEN_HEIGHT - 40, "Match the door's color circle with your collected keys!");
 	}
 
@@ -611,6 +608,12 @@ inline void renderLevel2()
 inline void level2_fixedUpdate()
 {
 	if (level2_isPaused || level2_gameOver || level2_keyFound) {
+		return;
+	}
+
+	// কমব্যাট চালু থাকলে সরাসরি যুদ্ধ আপডেট হবে
+	if (level2combat_active) {
+		updateLevel2CombatIfActive();
 		return;
 	}
 
@@ -631,7 +634,6 @@ inline void level2_fixedUpdate()
 			if (rand() % 100 < 30) {
 				level2_power2x.active = true;
 				level2_power2x.x = (float)SCREEN_WIDTH + 50.0f;
-				// Randomly spawn from Top (215px) or Bottom (100px)
 				level2_power2x.y = (rand() % 2 == 0) ? 215.0f : 100.0f;
 				level2_powerSpawnCounter = 0;
 			}
@@ -780,7 +782,7 @@ inline void level2_fixedUpdate()
 				level2_playerX, level2_playerY, level2_playerWidth, level2_playerHeight)) {
 				level2_power2x.active = false;
 				level2_scoreMultiplier = 2;
-				level2_multiplierTimer = 500; // 500 frames * 20ms = 10 Seconds
+				level2_multiplierTimer = 500;
 				strcpy_s(level2_message, sizeof(level2_message), "2X SCORE BOOST ACTIVATED FOR 10 SECONDS!");
 				level2_messageTimer = 70;
 				playPlusPointSound();
@@ -797,17 +799,17 @@ inline void level2_fixedUpdate()
 				int damageEnergy = 15;
 				int deductScore = 100;
 
-				if (level2_obstacles[i].type == 0) { // Crab
+				if (level2_obstacles[i].type == 0) {
 					damageEnergy = 15;
 					deductScore = 100;
 					strcpy_s(level2_message, sizeof(level2_message), "Hit Crab! -100 Score, -15 Energy");
 				}
-				else if (level2_obstacles[i].type == 1) { // Octopus
+				else if (level2_obstacles[i].type == 1) {
 					damageEnergy = 22;
 					deductScore = 200;
 					strcpy_s(level2_message, sizeof(level2_message), "Hit Octopus! -200 Score, -22 Energy");
 				}
-				else if (level2_obstacles[i].type == 2) { // Seahorse
+				else if (level2_obstacles[i].type == 2) {
 					damageEnergy = 18;
 					deductScore = 150;
 					strcpy_s(level2_message, sizeof(level2_message), "Hit Seahorse! -150 Score, -18 Energy");

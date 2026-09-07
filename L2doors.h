@@ -30,6 +30,372 @@ void level2_updateScore(int addPoints);
 void playPlusPointSound();
 void playNegPointSound();
 
+// =================================================================
+//  LEVEL 2 COMBAT - GUARDIAN FIGHT DATA & LOGIC
+// =================================================================
+#define L2C_ENEMY_MAX_ENERGY      150
+#define L2C_KNIFE_DAMAGE           12
+#define L2C_SHOOT_DAMAGE           12
+#define L2C_ENEMY_ATTACK_DAMAGE    15
+#define L2C_KNIFE_COOLDOWN_FRAMES  20
+#define L2C_SHOOT_COOLDOWN_FRAMES  12
+#define L2C_ATTACK_FRAME_DELAY      3
+#define L2C_DODGE_DURATION         18
+
+#define L2C_PLAYER_NORMAL_W  90
+#define L2C_PLAYER_NORMAL_H 130
+#define L2C_PLAYER_SLIDE_W  120
+#define L2C_PLAYER_SLIDE_H   60
+#define L2C_PLAYER_MOVE_SPEED  5
+#define L2C_PLAYER_MIN_X       40
+
+#define L2C_APPROACH_DURATION  70
+#define L2C_TELEGRAPH_DURATION 25
+#define L2C_LUNGE_DURATION     20
+#define L2C_RETREAT_DURATION   45
+
+#define L2C_ENEMY_FAR_X    (SCREEN_WIDTH - 330)
+#define L2C_ENEMY_NEAR_X   (SCREEN_WIDTH - 480)
+#define L2C_ENEMY_LUNGE_X  (L2C_ENEMY_NEAR_X - 150)
+
+#define L2C_MELEE_RANGE     220
+#define L2C_DANGER_MARGIN    70
+
+enum L2CEnemyPhase { L2C_PHASE_APPROACH, L2C_PHASE_TELEGRAPH, L2C_PHASE_LUNGE, L2C_PHASE_RETREAT };
+
+static bool level2combat_active = false;
+static int level2combat_enemyEnergy = 0;
+static int level2combat_attackCooldown = 0;
+
+static int level2combat_enemyPhase = L2C_PHASE_APPROACH;
+static int level2combat_phaseTimer = 0;
+static float level2combat_enemyX = (float)L2C_ENEMY_FAR_X;
+static bool level2combat_damageAppliedThisCycle = false;
+
+static float level2combat_playerX = 150.0f;
+
+static bool level2combat_playerAttacking = false;
+static int level2combat_attackType = 0;   // 0 = knife, 1 = shoot
+static int level2combat_attackAnimFrame = 0;
+static int level2combat_attackAnimTimer = 0;
+
+static bool level2combat_dodging = false;
+static int level2combat_dodgeType = 0;    // 0 = jump, 1 = slide
+static int level2combat_dodgeTimer = 0;
+static int level2combat_dodgeFrame = 0;
+
+static char level2combat_hint[64] = "";
+static int level2combat_hintTimer = 0;
+
+// Cutscene Stage forward decl
+static int level2_finishStage = 0;
+
+inline void startLevel2Combat()
+{
+	level2combat_active = true;
+	level2combat_enemyEnergy = L2C_ENEMY_MAX_ENERGY;
+	level2combat_attackCooldown = 0;
+
+	level2combat_enemyPhase = L2C_PHASE_APPROACH;
+	level2combat_phaseTimer = 0;
+	level2combat_enemyX = (float)L2C_ENEMY_FAR_X;
+	level2combat_damageAppliedThisCycle = false;
+
+	level2combat_playerX = 150.0f;
+
+	level2combat_playerAttacking = false;
+	level2combat_attackAnimFrame = 0;
+	level2combat_attackAnimTimer = 0;
+
+	level2combat_dodging = false;
+	level2combat_dodgeTimer = 0;
+	level2combat_dodgeFrame = 0;
+
+	level2combat_hintTimer = 0;
+}
+
+inline void renderLevel2Combat()
+{
+	static int bgImg = -1, idleImg = -1;
+	static int enemyIdleImg = -1, enemyWindupImg = -1, enemyStrikeImg = -1;
+	static int knifeFrames[7];
+	static int shootFrames[3];
+	static int jumpFrames[3];
+	static int slideImg = -1;
+
+	if (bgImg == -1) {
+		bgImg = iLoadImage("Image/UnderSeacombat.png");
+		idleImg = iLoadImage("Image/idle_1.png");
+
+		enemyIdleImg = iLoadImage("Image/Enemy_idle.png");
+		if (enemyIdleImg < 0) enemyIdleImg = iLoadImage("Image/Enemy.png");
+
+		enemyWindupImg = iLoadImage("Image/Enemy_aim.png");
+		if (enemyWindupImg < 0) enemyWindupImg = enemyIdleImg;
+
+		enemyStrikeImg = iLoadImage("Image/Enemy_charge.png");
+		if (enemyStrikeImg < 0) enemyStrikeImg = enemyIdleImg;
+
+		knifeFrames[0] = iLoadImage("Image/knife_1.png");
+		knifeFrames[1] = iLoadImage("Image/knife_2.png");
+		knifeFrames[2] = iLoadImage("Image/knife_3.png");
+		knifeFrames[3] = iLoadImage("Image/knife_4.png");
+		knifeFrames[4] = iLoadImage("Image/knife_5.png");
+		knifeFrames[5] = iLoadImage("Image/knife_6.png");
+		knifeFrames[6] = iLoadImage("Image/knife_7.png");
+
+		shootFrames[0] = iLoadImage("Image/shoot_1.png");
+		shootFrames[1] = iLoadImage("Image/shoot_2.png");
+		shootFrames[2] = iLoadImage("Image/shoot_3.png");
+
+		jumpFrames[0] = iLoadImage("Image/jump_1.png");
+		jumpFrames[1] = iLoadImage("Image/jump_2.png");
+		jumpFrames[2] = iLoadImage("Image/jump_3.png");
+
+		slideImg = iLoadImage("Image/slide.png");
+	}
+
+	iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bgImg);
+
+	// Player
+	int playerImg = idleImg;
+	int drawW = L2C_PLAYER_NORMAL_W, drawH = L2C_PLAYER_NORMAL_H;
+
+	if (level2combat_playerAttacking) {
+		playerImg = (level2combat_attackType == 0)
+			? knifeFrames[level2combat_attackAnimFrame]
+			: shootFrames[level2combat_attackAnimFrame];
+	}
+	else if (level2combat_dodging) {
+		if (level2combat_dodgeType == 0) {
+			playerImg = jumpFrames[level2combat_dodgeFrame];
+		}
+		else {
+			playerImg = slideImg;
+			drawW = L2C_PLAYER_SLIDE_W;
+			drawH = L2C_PLAYER_SLIDE_H;
+		}
+	}
+	iShowImage((int)level2combat_playerX, 80, drawW, drawH, playerImg);
+
+	// Enemy
+	int enemyImg = enemyIdleImg;
+	int enemyW = 200, enemyH = 220;
+
+	if (level2combat_enemyPhase == L2C_PHASE_TELEGRAPH) {
+		enemyImg = enemyWindupImg;
+		enemyW = 220; enemyH = 240;
+	}
+	else if (level2combat_enemyPhase == L2C_PHASE_LUNGE) {
+		enemyImg = enemyStrikeImg;
+		enemyW = 230; enemyH = 250;
+
+		iSetColor(255, 120, 0);
+		for (int t = 1; t <= 3; t++) {
+			int trailX = (int)level2combat_enemyX + t * 25;
+			iLine(trailX, 150, trailX + 15, 150);
+			iLine(trailX, 200, trailX + 15, 200);
+		}
+	}
+	iShowImage((int)level2combat_enemyX, 80, enemyW, enemyH, enemyImg);
+
+	// ---- Energy Bars ----
+	// 1. Character Energy Bar
+	iSetColor(200, 200, 200);
+	iFilledRectangle(20, SCREEN_HEIGHT - 40, 200, 20);
+	iSetColor(level2_energy > 30 ? 0 : 220, level2_energy > 30 ? 200 : 20, 0);
+	iFilledRectangle(20, SCREEN_HEIGHT - 40, 2 * level2_energy, 20);
+	iSetColor(0, 0, 0);
+	iRectangle(20, SCREEN_HEIGHT - 40, 200, 20);
+	iText(20, SCREEN_HEIGHT - 55, "Energy");
+
+	// 2. Enemy Energy Bar (Character-এর Energy Bar-এর ঠিক নিচে)
+	iSetColor(200, 200, 200);
+	iFilledRectangle(20, SCREEN_HEIGHT - 80, 200, 20);
+	iSetColor(200, 0, 0);
+	iFilledRectangle(20, SCREEN_HEIGHT - 80,
+		(int)(200.0f * level2combat_enemyEnergy / L2C_ENEMY_MAX_ENERGY), 20);
+	iSetColor(0, 0, 0);
+	iRectangle(20, SCREEN_HEIGHT - 80, 200, 20);
+	iText(20, SCREEN_HEIGHT - 95, "Enemy");
+
+	// Instructions
+	iSetColor(255, 255, 255);
+	iText(SCREEN_WIDTH / 2 - 190, 30, "LEFT/RIGHT = move   SPACE = knife   F = shoot");
+
+	if (level2combat_enemyPhase == L2C_PHASE_TELEGRAPH || level2combat_enemyPhase == L2C_PHASE_LUNGE) {
+		iSetColor(255, 230, 0);
+		iText(SCREEN_WIDTH / 2 - 150, 60, "INCOMING! Retreat (LEFT) or dodge (UP/DOWN)!");
+	}
+
+	if (level2combat_hintTimer > 0) {
+		iSetColor(255, 255, 255);
+		iText(SCREEN_WIDTH / 2 - 60, 100, level2combat_hint);
+	}
+}
+
+inline void level2combat_fixedUpdate()
+{
+	if (level2_gameOver) {
+		level2combat_active = false;
+		return;
+	}
+
+	if (level2combat_attackCooldown > 0) level2combat_attackCooldown--;
+	if (level2combat_hintTimer > 0) level2combat_hintTimer--;
+
+	if (level2combat_playerAttacking) {
+		level2combat_attackAnimTimer++;
+		if (level2combat_attackAnimTimer >= L2C_ATTACK_FRAME_DELAY) {
+			level2combat_attackAnimTimer = 0;
+			level2combat_attackAnimFrame++;
+			int maxFrames = (level2combat_attackType == 0) ? 7 : 3;
+			if (level2combat_attackAnimFrame >= maxFrames) {
+				level2combat_playerAttacking = false;
+				level2combat_attackAnimFrame = 0;
+			}
+		}
+	}
+
+	if (level2combat_dodging) {
+		level2combat_dodgeTimer--;
+		if (level2combat_dodgeType == 0) {
+			level2combat_dodgeFrame = (level2combat_dodgeTimer / 6) % 3;
+		}
+		if (level2combat_dodgeTimer <= 0) {
+			level2combat_dodging = false;
+		}
+	}
+
+	if (isSpecialKeyPressed(GLUT_KEY_RIGHT)) {
+		level2combat_playerX += L2C_PLAYER_MOVE_SPEED;
+		float maxX = level2combat_enemyX - 80.0f;
+		if (level2combat_playerX > maxX) level2combat_playerX = maxX;
+	}
+	else if (isSpecialKeyPressed(GLUT_KEY_LEFT)) {
+		level2combat_playerX -= L2C_PLAYER_MOVE_SPEED;
+		if (level2combat_playerX < L2C_PLAYER_MIN_X) level2combat_playerX = L2C_PLAYER_MIN_X;
+	}
+
+	if (!level2combat_dodging) {
+		if (isSpecialKeyPressed(GLUT_KEY_UP)) {
+			level2combat_dodging = true;
+			level2combat_dodgeType = 0;
+			level2combat_dodgeTimer = L2C_DODGE_DURATION;
+		}
+	}
+	if (!level2combat_dodging && isSpecialKeyPressed(GLUT_KEY_DOWN)) {
+		level2combat_dodging = true;
+		level2combat_dodgeType = 1;
+		level2combat_dodgeTimer = L2C_DODGE_DURATION;
+	}
+
+	// Knife Attack
+	if (isKeyPressed(' ') && level2combat_attackCooldown <= 0 && !level2combat_playerAttacking) {
+		level2combat_attackCooldown = L2C_KNIFE_COOLDOWN_FRAMES;
+		level2combat_playerAttacking = true;
+		level2combat_attackType = 0;
+		level2combat_attackAnimFrame = 0;
+		level2combat_attackAnimTimer = 0;
+
+		float distance = level2combat_enemyX - (level2combat_playerX + L2C_PLAYER_NORMAL_W);
+		if (distance <= L2C_MELEE_RANGE) {
+			level2combat_enemyEnergy -= L2C_KNIFE_DAMAGE;
+			if (level2combat_enemyEnergy < 0) level2combat_enemyEnergy = 0;
+			level2_updateScore(25);
+			playPlusPointSound();
+		}
+		else {
+			strcpy_s(level2combat_hint, sizeof(level2combat_hint), "Too far! Move closer.");
+			level2combat_hintTimer = 40;
+		}
+	}
+	// Shoot Attack
+	else if ((isKeyPressed('f') || isKeyPressed('F')) && level2combat_attackCooldown <= 0 && !level2combat_playerAttacking) {
+		level2combat_enemyEnergy -= L2C_SHOOT_DAMAGE;
+		if (level2combat_enemyEnergy < 0) level2combat_enemyEnergy = 0;
+		level2combat_attackCooldown = L2C_SHOOT_COOLDOWN_FRAMES;
+		level2combat_playerAttacking = true;
+		level2combat_attackType = 1;
+		level2combat_attackAnimFrame = 0;
+		level2combat_attackAnimTimer = 0;
+		level2_updateScore(25);
+		playPlusPointSound();
+	}
+
+	level2combat_phaseTimer++;
+
+	if (level2combat_enemyPhase == L2C_PHASE_APPROACH) {
+		float t = (float)level2combat_phaseTimer / L2C_APPROACH_DURATION;
+		if (t > 1.0f) t = 1.0f;
+		level2combat_enemyX = (float)L2C_ENEMY_FAR_X + ((float)L2C_ENEMY_NEAR_X - (float)L2C_ENEMY_FAR_X) * t;
+
+		if (level2combat_phaseTimer >= L2C_APPROACH_DURATION) {
+			level2combat_enemyX = (float)L2C_ENEMY_NEAR_X;
+			level2combat_enemyPhase = L2C_PHASE_TELEGRAPH;
+			level2combat_phaseTimer = 0;
+		}
+	}
+	else if (level2combat_enemyPhase == L2C_PHASE_TELEGRAPH) {
+		level2combat_enemyX = (float)L2C_ENEMY_NEAR_X;
+
+		if (level2combat_phaseTimer >= L2C_TELEGRAPH_DURATION) {
+			level2combat_enemyPhase = L2C_PHASE_LUNGE;
+			level2combat_phaseTimer = 0;
+		}
+	}
+	else if (level2combat_enemyPhase == L2C_PHASE_LUNGE) {
+		float t = (float)level2combat_phaseTimer / L2C_LUNGE_DURATION;
+		if (t > 1.0f) t = 1.0f;
+		level2combat_enemyX = (float)L2C_ENEMY_NEAR_X + ((float)L2C_ENEMY_LUNGE_X - (float)L2C_ENEMY_NEAR_X) * t;
+
+		if (level2combat_phaseTimer >= L2C_LUNGE_DURATION) {
+			level2combat_enemyX = (float)L2C_ENEMY_LUNGE_X;
+
+			if (!level2combat_damageAppliedThisCycle) {
+				float playerRightEdge = level2combat_playerX + L2C_PLAYER_NORMAL_W;
+				float dangerDistance = level2combat_enemyX - playerRightEdge;
+				bool playerInDanger = (dangerDistance <= L2C_DANGER_MARGIN);
+
+				if (playerInDanger && !level2combat_dodging) {
+					level2_energy -= L2C_ENEMY_ATTACK_DAMAGE;
+					level2_updateScore(-150);
+					playNegPointSound();
+					if (level2_energy < 0) level2_energy = 0;
+				}
+				level2combat_damageAppliedThisCycle = true;
+			}
+
+			level2combat_enemyPhase = L2C_PHASE_RETREAT;
+			level2combat_phaseTimer = 0;
+		}
+	}
+	else if (level2combat_enemyPhase == L2C_PHASE_RETREAT) {
+		float t = (float)level2combat_phaseTimer / L2C_RETREAT_DURATION;
+		if (t > 1.0f) t = 1.0f;
+		level2combat_enemyX = (float)L2C_ENEMY_LUNGE_X + ((float)L2C_ENEMY_FAR_X - (float)L2C_ENEMY_LUNGE_X) * t;
+
+		if (level2combat_phaseTimer >= L2C_RETREAT_DURATION) {
+			level2combat_enemyX = (float)L2C_ENEMY_FAR_X;
+			level2combat_enemyPhase = L2C_PHASE_APPROACH;
+			level2combat_phaseTimer = 0;
+			level2combat_damageAppliedThisCycle = false;
+		}
+	}
+
+	if (level2combat_enemyEnergy <= 0) {
+		level2combat_active = false;
+		level2_finishStage = 1;
+		level2_updateScore(500);
+		playPlusPointSound();
+	}
+	else if (level2_energy <= 0) {
+		level2_energy = 0;
+		level2_gameOver = true;
+		level2combat_active = false;
+	}
+}
+
 // ---------------- DOORS DATA & SETUP ----------------
 struct Level2Door {
 	int x, y, width, height;
@@ -37,7 +403,7 @@ struct Level2Door {
 	int assignedKeyColorId;
 };
 
-#define LEVEL2_DOOR_WIDTH  120
+#define LEVEL2_DOOR_WIDTH   120
 #define LEVEL2_DOOR_HEIGHT 180
 #define LEVEL2_DOOR_GAP    60
 #define LEVEL2_DOORS_START_X ((SCREEN_WIDTH - (4 * LEVEL2_DOOR_WIDTH + 3 * LEVEL2_DOOR_GAP)) / 2)
@@ -53,8 +419,6 @@ static int level2_doorTaskType[4];
 static bool level2_insideTask = false;
 static int level2_currentTaskDoor = -1;
 
-// Cutscene
-static int level2_finishStage = 0;
 static float level2_shineTimer = 0.0f;
 static float level2_clamOpenAngle = 0.0f;
 
@@ -297,6 +661,7 @@ inline void setupLevel2Doors()
 	level2_finishStage = 0;
 	level2_shineTimer = 0.0f;
 	level2_clamOpenAngle = 0.0f;
+	level2combat_active = false;
 
 	level2_realKeyDoor = rand() % 4;
 	{
@@ -318,6 +683,12 @@ inline void setupLevel2Doors()
 inline void renderLevel2DoorsContent(int doorClosedImg, int doorOpenImg)
 {
 	if (!level2_doorsVisible) return;
+
+	// Guardian Fight রেন্ডারিং
+	if (level2combat_active) {
+		renderLevel2Combat();
+		return;
+	}
 
 	if (!level2_insideTask) {
 		if (level2_finishStage == 0) {
@@ -419,6 +790,7 @@ inline void renderLevel2DoorsContent(int doorClosedImg, int doorOpenImg)
 
 inline void handleL2DoorClicks(int mx, int my)
 {
+	if (level2combat_active) return;
 	if (level2_keyFound) return;
 
 	if (level2_finishStage == 1) {
@@ -435,6 +807,7 @@ inline void handleL2DoorClicks(int mx, int my)
 			level2_finishStage = 3;
 			level2_keyFound = true;
 			level2_updateScore(1000);
+			playPlusPointSound();
 		}
 		return;
 	}
@@ -459,13 +832,14 @@ inline void handleL2DoorClicks(int mx, int my)
 					level2_insideTask = false;
 					level2_currentTaskDoor = -1;
 					level2_updateScore(200);
-					playPlusPointSound(); // সঠিক উত্তরে plusPoint.MP3 বাজবে
+					playPlusPointSound();
 					strcpy_s(level2_message, sizeof(level2_message), "Correct! Door unlocked - Select another door.");
 					level2_messageTimer = 100;
 				}
 				else {
 					level2_energy -= LEVEL2_WRONG_TASK_PENALTY;
-					playNegPointSound(); // ভুল উত্তরে negPoint.MP3 বাজবে
+					level2_updateScore(-100);
+					playNegPointSound();
 					strcpy_s(level2_message, sizeof(level2_message), "Wrong answer! Try again.");
 					level2_messageTimer = 70;
 					if (level2_energy <= 0) {
@@ -487,7 +861,7 @@ inline void handleL2DoorClicks(int mx, int my)
 			int requiredKey = level2_doors[i].assignedKeyColorId;
 
 			if (!level2_keyCollected[requiredKey]) {
-				playNegPointSound(); // চাবি না থাকলে negPoint.MP3 বাজবে
+				playNegPointSound();
 				strcpy_s(level2_message, sizeof(level2_message), "Key missing! Go back and collect the matching key.");
 				level2_messageTimer = 90;
 				return;
@@ -495,7 +869,7 @@ inline void handleL2DoorClicks(int mx, int my)
 
 			if (i == level2_realKeyDoor) {
 				level2_doors[i].visited = true;
-				level2_finishStage = 1;
+				startLevel2Combat();
 			}
 			else if (!level2_doors[i].visited) {
 				level2_currentTaskDoor = i;
@@ -508,6 +882,14 @@ inline void handleL2DoorClicks(int mx, int my)
 			}
 			return;
 		}
+	}
+}
+
+// Fixed update helper to advance combat
+inline void updateLevel2CombatIfActive()
+{
+	if (level2combat_active) {
+		level2combat_fixedUpdate();
 	}
 }
 
