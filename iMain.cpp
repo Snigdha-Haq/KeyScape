@@ -59,8 +59,11 @@ void iDraw()
 	static int lastGameState = -1;
 
 	// অডিও ট্রানজিশন ম্যানেজমেন্ট:
-	// ১. গেমপ্লে স্ক্রিন (লেভেল ১ বা লেভেল ২)
-	if ((gameState == 1 || gameState == 6) && !level2_gameOver && !level2_keyFound) {
+	// ১. গেমপ্লে স্ক্রিন (লেভেল ১ বা লেভেল ২ অ্যাক্টিভ থাকা অবস্থায়)
+	bool isLevel1Active = (gameState == 1 && level1_state != L1_GAME_OVER && level1_state != L1_RESULT);
+	bool isLevel2Active = (gameState == 6 && !level2_gameOver && !level2_keyFound);
+
+	if (isLevel1Active || isLevel2Active) {
 		stopMainMenuMusic();
 		playBgMusic();
 	}
@@ -69,7 +72,7 @@ void iDraw()
 		stopBgMusic();
 		playMainMenuMusic();
 	}
-	// ৩. গেম ওভার বা উইন হলে সব ব্যাকগ্রাউন্ড মিউজিক থামবে
+	// ৩. গেম ওভার বা উইন হলে ব্যাকগ্রাউন্ড মিউজিক থামবে (যাতে উইন/লুজ মেলোডি পরিষ্কার শোনা যায়)
 	else {
 		stopBgMusic();
 		stopMainMenuMusic();
@@ -138,7 +141,14 @@ void iMouse(int button, int state, int mx, int my)
 
 void iSpecialKeyboard(unsigned char key)
 {
-	if (gameState == 6) {
+	// লেভেল ১ এবং লেভেল ২ উভয়ের জাম্প/মুভমেন্ট স্পেশাল কিবোর্ড হ্যান্ডলার
+	if (gameState == 1) {
+		if (key == GLUT_KEY_UP && !level1_isJumping && level1_state == L1_RUNNING && !level1_isPaused) {
+			level1_isJumping = true;
+			level1_jumpVelocity = JUMP_STRENGTH;
+		}
+	}
+	else if (gameState == 6) {
 		handleLevel2SpecialKeyboard(key);
 	}
 }
@@ -151,7 +161,7 @@ void iKeyboard(unsigned char key)
 	if (gameState == 6) {
 		handleLevel2Keyboard(key);
 	}
-	if (key == 27) { // ESC চেপে হোমে ফেরা
+	if (key == 27) { // ESC চেপে যেকোনো সময় সরাসরি হোমে ফেরা
 		gameState = 0;
 	}
 }
