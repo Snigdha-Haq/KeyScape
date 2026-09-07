@@ -19,20 +19,32 @@ inline void renderOptionPage() {
 	// bg image
 	iShowImage(0, 0, 1000, 600, optionBgImg);
 
-	// মাঝ বরাবর কন্ট্রোল নির্দেশিকা টেক্সট (কালো রঙ, একই সাইজ ও ফন্ট)
+	// টেক্সট সামান্য ডানে (X=400) এবং প্রতিটি লাইনের মাঝে ফাঁকা জায়গা বৃদ্ধি (Gap=42px)
 	iSetColor(0, 0, 0);
 
 	// 1. UP : Jump
-	iText(420, 360, "UP     :  Jump", GLUT_BITMAP_TIMES_ROMAN_24);
-	iText(421, 360, "UP     :  Jump", GLUT_BITMAP_TIMES_ROMAN_24); // বোল্ড এফেক্ট
+	iText(400, 310, "UP          :  Jump", GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(401, 310, "UP          :  Jump", GLUT_BITMAP_TIMES_ROMAN_24); // বোল্ড এফেক্ট
 
 	// 2. DN : Slide
-	iText(420, 300, "DN     :  Slide", GLUT_BITMAP_TIMES_ROMAN_24);
-	iText(421, 300, "DN     :  Slide", GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(400, 268, "DN          :  Slide", GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(401, 268, "DN          :  Slide", GLUT_BITMAP_TIMES_ROMAN_24);
 
 	// 3. RIGHT : Run
-	iText(420, 240, "RIGHT  :  Run", GLUT_BITMAP_TIMES_ROMAN_24);
-	iText(421, 240, "RIGHT  :  Run", GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(400, 226, "RIGHT       :  Run", GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(401, 226, "RIGHT       :  Run", GLUT_BITMAP_TIMES_ROMAN_24);
+
+	// 4. LEFT/RIGHT : Move
+	iText(400, 184, "LEFT/RIGHT  :  Move", GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(401, 184, "LEFT/RIGHT  :  Move", GLUT_BITMAP_TIMES_ROMAN_24);
+
+	// 5. SPACE : Knife
+	iText(400, 142, "SPACE       :  Knife", GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(401, 142, "SPACE       :  Knife", GLUT_BITMAP_TIMES_ROMAN_24);
+
+	// 6. F : Shoot
+	iText(400, 100, "F           :  Shoot", GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(401, 100, "F           :  Shoot", GLUT_BITMAP_TIMES_ROMAN_24);
 
 	// Back Button render
 	if (backBtnImg != -1) {

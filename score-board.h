@@ -9,6 +9,7 @@
 #endif
 
 extern int gameState;
+extern int level1_highScore;
 extern int level2_highScore;
 
 // Back Button Position & Size (Matching option.h)
@@ -16,6 +17,16 @@ extern int level2_highScore;
 #define HS_BACK_BTN_Y 30
 #define HS_BACK_BTN_WIDTH 200
 #define HS_BACK_BTN_HEIGHT 60
+
+// লেভেল ১ এর সেভ করা হাইস্কোর নিশ্চিতভাবে লোড করার ফাংশন
+inline void fetchLevel1HighScore() {
+	FILE* fp = NULL;
+	fopen_s(&fp, "level1_highscore.txt", "r");
+	if (fp != NULL) {
+		fscanf_s(fp, "%d", &level1_highScore);
+		fclose(fp);
+	}
+}
 
 // লেভেল ২ এর সেভ করা হাইস্কোর নিশ্চিতভাবে লোড করার ফাংশন
 inline void fetchLevel2HighScore() {
@@ -35,6 +46,7 @@ inline void renderHighscorePage() {
 	}
 
 	// প্রতিবার হাইস্কোর পেজে আসার সাথে সাথে টেক্সট ফাইল থেকে আপডেট হাইস্কোর রিড করবে
+	fetchLevel1HighScore();
 	fetchLevel2HighScore();
 
 	if (bgScoreBoardImg >= 0) {
@@ -50,18 +62,18 @@ inline void renderHighscorePage() {
 	char mediumBuf[80];
 	char hardBuf[80];
 
-	sprintf_s(easyBuf, sizeof(easyBuf), "EASY LEVEL HIGHSCORE   :  0");
+	sprintf_s(easyBuf, sizeof(easyBuf), "EASY LEVEL HIGHSCORE   :  %d", level1_highScore);
 	sprintf_s(mediumBuf, sizeof(mediumBuf), "MEDIUM LEVEL HIGHSCORE :  %d", level2_highScore);
 	sprintf_s(hardBuf, sizeof(hardBuf), "HARD LEVEL HIGHSCORE   :  0");
 
 	// সব লেখার রঙ কালো (Black)
 	iSetColor(0, 0, 0);
 
-	// 1. Easy Level
+	// 1. Easy Level (লেভেল ১ এর আসল হাইস্কোর)
 	iText(280, 360, easyBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 	iText(281, 360, easyBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 
-	// 2. Medium Level (আসল হাইস্কোর)
+	// 2. Medium Level (লেভেল ২ এর আসল হাইস্কোর)
 	iText(280, 300, mediumBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 	iText(281, 300, mediumBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 

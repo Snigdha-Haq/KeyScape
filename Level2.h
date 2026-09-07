@@ -17,26 +17,33 @@
 
 extern int gameState;
 
+// ---------------- GLOBAL SOUND TOGGLE STATE ----------------
+bool isSoundMuted = false;
+
 // ---------------- SOUND EFFECT HELPERS ----------------
 inline void playPlusPointSound() {
+	if (isSoundMuted) return;
 	mciSendString("close sfx_plus", NULL, 0, NULL);
 	mciSendString("open \"Audios/plusPoint.MP3\" type mpegvideo alias sfx_plus", NULL, 0, NULL);
 	mciSendString("play sfx_plus from 0", NULL, 0, NULL);
 }
 
 inline void playNegPointSound() {
+	if (isSoundMuted) return;
 	mciSendString("close sfx_neg", NULL, 0, NULL);
 	mciSendString("open \"Audios/negPoint.MP3\" type mpegvideo alias sfx_neg", NULL, 0, NULL);
 	mciSendString("play sfx_neg from 0", NULL, 0, NULL);
 }
 
 inline void playWinSound() {
+	if (isSoundMuted) return;
 	mciSendString("close sfx_win", NULL, 0, NULL);
 	mciSendString("open \"Audios/win_and_lose_melodies_-_arranged_win.MP3\" type mpegvideo alias sfx_win", NULL, 0, NULL);
 	mciSendString("play sfx_win from 0", NULL, 0, NULL);
 }
 
 inline void playLoseSound() {
+	if (isSoundMuted) return;
 	mciSendString("close sfx_lose", NULL, 0, NULL);
 	mciSendString("open \"Audios/win_and_lose_melodies_-_arranged_lose.MP3\" type mpegvideo alias sfx_lose", NULL, 0, NULL);
 	mciSendString("play sfx_lose from 0", NULL, 0, NULL);
@@ -97,9 +104,10 @@ static bool level2_showSettingsMenu = false;
 #define LEVEL2_SETTING_BTN_R 22
 
 #define LEVEL2_SUB_BTN_R     20
-#define LEVEL2_SUB_R_Y       110
-#define LEVEL2_SUB_P_Y       165
-#define LEVEL2_SUB_M_Y       220
+#define LEVEL2_SUB_R_Y       100
+#define LEVEL2_SUB_P_Y       150
+#define LEVEL2_SUB_M_Y       200
+#define LEVEL2_SUB_S_Y       250
 
 // ---------------- SCORE & 2X MULTIPLIER ----------------
 int level2_score = 0;
@@ -107,7 +115,7 @@ int level2_highScore = 0;
 static bool level2_highScoreLoaded = false;
 
 static int level2_scoreMultiplier = 1;
-static int level2_multiplierTimer = 0; // Frames remaining for 2X effect
+static int level2_multiplierTimer = 0;
 
 // ---------------- 2X FLOATING ORB ----------------
 struct Level2PowerUp {
@@ -146,7 +154,7 @@ inline void level2_updateScore(int addPoints)
 		level2_score += (addPoints * level2_scoreMultiplier);
 	}
 	else {
-		level2_score += addPoints; // Score deduction
+		level2_score += addPoints;
 		if (level2_score < 0) level2_score = 0;
 	}
 
@@ -284,6 +292,14 @@ inline void level2_drawSettingsUI()
 		iSetColor(255, 255, 255);
 		iCircle(LEVEL2_SETTING_BTN_X, LEVEL2_SUB_M_Y, LEVEL2_SUB_BTN_R);
 		level2_drawBoldText(LEVEL2_SETTING_BTN_X - 8, LEVEL2_SUB_M_Y - 7, "M", GLUT_BITMAP_TIMES_ROMAN_24);
+
+		// Sound 'S' Toggle Button
+		if (isSoundMuted) iSetColor(120, 120, 120);
+		else iSetColor(230, 140, 20);
+		iFilledCircle(LEVEL2_SETTING_BTN_X, LEVEL2_SUB_S_Y, LEVEL2_SUB_BTN_R);
+		iSetColor(255, 255, 255);
+		iCircle(LEVEL2_SETTING_BTN_X, LEVEL2_SUB_S_Y, LEVEL2_SUB_BTN_R);
+		level2_drawBoldText(LEVEL2_SETTING_BTN_X - 6, LEVEL2_SUB_S_Y - 7, "S", GLUT_BITMAP_TIMES_ROMAN_24);
 	}
 
 	if (level2_isPaused && !level2_gameOver && !level2_keyFound) {
@@ -525,7 +541,6 @@ inline void renderLevel2()
 			}
 		}
 
-		// Draw Floating 2X Orb
 		if (level2_power2x.active) {
 			level2_draw2XOrb(level2_power2x.x, level2_power2x.y);
 		}
@@ -550,7 +565,7 @@ inline void renderLevel2()
 		iShowImage((int)level2_playerX, (int)level2_playerY, level2_playerWidth, level2_playerHeight, playerImg);
 	}
 
-	// 6. Doors & Tasks (Combats also render inside here)
+	// 6. Doors & Tasks
 	renderLevel2DoorsContent(doorClosedImg, doorOpenImg);
 
 	// 7. HUD Display
@@ -601,7 +616,6 @@ inline void renderLevel2()
 		level2_drawBoldText(SCREEN_WIDTH / 2 - 180, SCREEN_HEIGHT - 70, level2_message, GLUT_BITMAP_HELVETICA_18);
 	}
 
-	// 8. Settings UI
 	level2_drawSettingsUI();
 }
 
@@ -611,7 +625,6 @@ inline void level2_fixedUpdate()
 		return;
 	}
 
-	// কমব্যাট চালু থাকলে সরাসরি যুদ্ধ আপডেট হবে
 	if (level2combat_active) {
 		updateLevel2CombatIfActive();
 		return;
@@ -619,7 +632,6 @@ inline void level2_fixedUpdate()
 
 	level2_shineTimer += 1.0f;
 
-	// 2X Multiplier Countdown (500 frames * 20ms = 10 Seconds)
 	if (level2_multiplierTimer > 0) {
 		level2_multiplierTimer--;
 		if (level2_multiplierTimer <= 0) {
@@ -627,10 +639,9 @@ inline void level2_fixedUpdate()
 		}
 	}
 
-	// Floating 2X Orb Spawn Check (every ~7-10 seconds randomly)
 	if (!level2_doorsVisible && !level2_power2x.active) {
 		level2_powerSpawnCounter++;
-		if (level2_powerSpawnCounter >= 350) { // ~7 seconds interval
+		if (level2_powerSpawnCounter >= 350) {
 			if (rand() % 100 < 30) {
 				level2_power2x.active = true;
 				level2_power2x.x = (float)SCREEN_WIDTH + 50.0f;
@@ -648,7 +659,6 @@ inline void level2_fixedUpdate()
 
 	level2_isMoving = false;
 
-	// Slide Down Check
 	if (!level2_doorsVisible && !level2_isJumping && isSpecialKeyPressed(GLUT_KEY_DOWN)) {
 		level2_isSliding = true;
 		level2_slideTimer = LEVEL2_SLIDE_DURATION;
@@ -665,7 +675,6 @@ inline void level2_fixedUpdate()
 		}
 	}
 
-	// Jump Up Check
 	if (!level2_doorsVisible && !level2_isSliding && isSpecialKeyPressed(GLUT_KEY_UP)) {
 		if (!level2_isJumping) {
 			level2_isJumping = true;
@@ -676,7 +685,6 @@ inline void level2_fixedUpdate()
 
 	float extraMoveEnemies = 0.0f;
 
-	// Forward Movement
 	if (!level2_doorsVisible && (isSpecialKeyPressed(GLUT_KEY_RIGHT) || level2_isSliding)) {
 		level2_isMoving = true;
 		level2_facingRight = true;
@@ -695,7 +703,6 @@ inline void level2_fixedUpdate()
 			level2_doorsVisible = true;
 		}
 	}
-	// Backward Movement
 	else if (!level2_doorsVisible && !level2_isSliding && isSpecialKeyPressed(GLUT_KEY_LEFT)) {
 		if (level2_distanceCovered > 0) {
 			level2_isMoving = true;
@@ -711,7 +718,6 @@ inline void level2_fixedUpdate()
 		}
 	}
 
-	// Autonomous 2X Orb Movement
 	if (level2_power2x.active) {
 		level2_power2x.x -= (level2_power2x.speed + extraMoveEnemies);
 		if (level2_power2x.x < -60) {
@@ -719,7 +725,6 @@ inline void level2_fixedUpdate()
 		}
 	}
 
-	// Autonomous Enemies Movement
 	if (!level2_doorsVisible) {
 		for (int i = 0; i < LEVEL2_NUM_OBSTACLES; i++) {
 			if (!level2_obstacles[i].spawned && level2_distanceCovered >= level2_obstacleSpawnDistance[i]) {
@@ -743,7 +748,6 @@ inline void level2_fixedUpdate()
 		}
 	}
 
-	// Jump Physics
 	if (level2_isJumping) {
 		level2_playerY += level2_jumpVelocity;
 		level2_jumpVelocity -= LEVEL2_GRAVITY;
@@ -760,7 +764,6 @@ inline void level2_fixedUpdate()
 		}
 	}
 
-	// Collisions & Pickups
 	if (!level2_doorsVisible) {
 		for (int i = 0; i < LEVEL2_NUM_KEYS; i++) {
 			if (level2_keys[i].collected) continue;
@@ -776,7 +779,6 @@ inline void level2_fixedUpdate()
 			}
 		}
 
-		// 2X Power-Up Pickup
 		if (level2_power2x.active) {
 			if (level2_rectOverlap(level2_power2x.x, level2_power2x.y, level2_power2x.size, level2_power2x.size,
 				level2_playerX, level2_playerY, level2_playerWidth, level2_playerHeight)) {
@@ -871,6 +873,17 @@ inline void handleLevel2DoorClicks(int mx, int my)
 			gameState = 5;
 			return;
 		}
+
+		// Sound 'S' Toggle Click
+		float distS = sqrtf((float)((mx - LEVEL2_SETTING_BTN_X) * (mx - LEVEL2_SETTING_BTN_X) +
+			(my - LEVEL2_SUB_S_Y) * (my - LEVEL2_SUB_S_Y)));
+		if (distS <= LEVEL2_SUB_BTN_R) {
+			isSoundMuted = !isSoundMuted;
+			if (isSoundMuted) {
+				mciSendString("stop bgMusic", NULL, 0, NULL);
+			}
+			return;
+		}
 	}
 
 	if (level2_gameOver) {
@@ -914,6 +927,12 @@ inline void handleLevel2Keyboard(unsigned char key)
 	}
 	else if (key == 'm' || key == 'M') {
 		gameState = 5;
+	}
+	else if (key == 's' || key == 'S') {
+		isSoundMuted = !isSoundMuted;
+		if (isSoundMuted) {
+			mciSendString("stop bgMusic", NULL, 0, NULL);
+		}
 	}
 }
 

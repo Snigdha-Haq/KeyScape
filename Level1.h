@@ -17,26 +17,33 @@
 
 extern int gameState;   // shared with iMain.cpp (used to hop to Level 2 after winning)
 
+// ---------------- GLOBAL SOUND TOGGLE STATE ----------------
+extern bool isSoundMuted;
+
 // ---------------- SOUND EFFECT HELPERS ----------------
 inline void level1_playPlusPointSound() {
+	if (isSoundMuted) return;
 	mciSendString("close l1_sfx_plus", NULL, 0, NULL);
 	mciSendString("open \"Audios/plusPoint.MP3\" type mpegvideo alias l1_sfx_plus", NULL, 0, NULL);
 	mciSendString("play l1_sfx_plus from 0", NULL, 0, NULL);
 }
 
 inline void level1_playNegPointSound() {
+	if (isSoundMuted) return;
 	mciSendString("close l1_sfx_neg", NULL, 0, NULL);
 	mciSendString("open \"Audios/negPoint.MP3\" type mpegvideo alias l1_sfx_neg", NULL, 0, NULL);
 	mciSendString("play l1_sfx_neg from 0", NULL, 0, NULL);
 }
 
 inline void level1_playWinSound() {
+	if (isSoundMuted) return;
 	mciSendString("close l1_sfx_win", NULL, 0, NULL);
 	mciSendString("open \"Audios/win_and_lose_melodies_-_arranged_win.MP3\" type mpegvideo alias l1_sfx_win", NULL, 0, NULL);
 	mciSendString("play l1_sfx_win from 0", NULL, 0, NULL);
 }
 
 inline void level1_playLoseSound() {
+	if (isSoundMuted) return;
 	mciSendString("close l1_sfx_lose", NULL, 0, NULL);
 	mciSendString("open \"Audios/win_and_lose_melodies_-_arranged_lose.MP3\" type mpegvideo alias l1_sfx_lose", NULL, 0, NULL);
 	mciSendString("play l1_sfx_lose from 0", NULL, 0, NULL);
@@ -66,9 +73,10 @@ static bool level1_showSettingsMenu = false;
 #define LEVEL1_SETTING_BTN_R 22
 
 #define LEVEL1_SUB_BTN_R     20
-#define LEVEL1_SUB_R_Y       110
-#define LEVEL1_SUB_P_Y       165
-#define LEVEL1_SUB_M_Y       220
+#define LEVEL1_SUB_R_Y       100
+#define LEVEL1_SUB_P_Y       150
+#define LEVEL1_SUB_M_Y       200
+#define LEVEL1_SUB_S_Y       250
 
 enum EnemyType  { ENEMY_SCORPION, ENEMY_MUMMY };
 enum WeaponType { WEAPON_SWORD, WEAPON_CLUB };
@@ -323,7 +331,6 @@ inline void level1_drawHUD()
 	iRectangle(20, SCREEN_HEIGHT - 40, 200, 20);
 	iText(20, SCREEN_HEIGHT - 55, "Energy");
 
-	// Live score in upper-right corner
 	char scoreBuf[64];
 	iSetColor(0, 0, 0);
 	sprintf_s(scoreBuf, sizeof(scoreBuf), "Score: %d", level1_score);
@@ -377,6 +384,14 @@ inline void level1_drawSettingsUI()
 		iSetColor(255, 255, 255);
 		iCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_M_Y, LEVEL1_SUB_BTN_R);
 		level1_drawBoldText(LEVEL1_SETTING_BTN_X - 8, LEVEL1_SUB_M_Y - 7, "M", GLUT_BITMAP_TIMES_ROMAN_24);
+
+		// Sound 'S' Toggle Button
+		if (isSoundMuted) iSetColor(120, 120, 120);
+		else iSetColor(230, 140, 20);
+		iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_S_Y, LEVEL1_SUB_BTN_R);
+		iSetColor(255, 255, 255);
+		iCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_S_Y, LEVEL1_SUB_BTN_R);
+		level1_drawBoldText(LEVEL1_SETTING_BTN_X - 6, LEVEL1_SUB_S_Y - 7, "S", GLUT_BITMAP_TIMES_ROMAN_24);
 	}
 
 	if (level1_isPaused && level1_state != L1_GAME_OVER && level1_state != L1_RESULT) {
@@ -588,7 +603,7 @@ inline void level1_handlePuzzleClick(int mx, int my)
 
 			if (level1_puzzleInputIndex >= SEQUENCE_LEN) {
 				level1_updateScore(200);
-				level1_playPlusPointSound(); // রুন-লক টাস্ক সফল হলে plusPoint.MP3
+				level1_playPlusPointSound();
 				level1_hasKey = true;
 				level1_state = L1_KEY_FOUND;
 				level1_stateTimer = 0;
@@ -597,7 +612,7 @@ inline void level1_handlePuzzleClick(int mx, int my)
 		else {
 			level1_puzzleFlashGood = false;
 			level1_puzzleInputIndex = 0;
-			level1_playNegPointSound(); // রুন-লক টাস্ক ভুল হলে negPoint.MP3
+			level1_playNegPointSound();
 		}
 		break;
 	}
@@ -710,7 +725,6 @@ inline void level1_combat_fixedUpdate()
 
 	if (level1_attackCooldown > 0) level1_attackCooldown--;
 
-	// hero attacks (fight এ পয়েন্ট বাড়লে / আঘাত করলে plusPoint.MP3)
 	if (isKeyPressed(' ') && level1_attackCooldown <= 0) {
 		int dmg = (level1_currentEnemy == ENEMY_SCORPION) ? SWORD_DMG_TO_SCORPION : CLUB_DMG_TO_MUMMY;
 		level1_enemyEnergy -= dmg;
@@ -721,7 +735,6 @@ inline void level1_combat_fixedUpdate()
 		level1_playPlusPointSound();
 	}
 
-	// enemy attacks back (fight এ এনিমি আঘাত করলে negPoint.MP3)
 	if (level1_enemyEnergy > 0) {
 		level1_enemyAttackTimer--;
 		if (level1_enemyAttackTimer <= 0) {
@@ -743,7 +756,7 @@ inline void level1_combat_fixedUpdate()
 
 	if (level1_enemyEnergy <= 0) {
 		level1_updateScore((level1_currentEnemy == ENEMY_SCORPION) ? 50 : 75);
-		level1_playPlusPointSound(); // এনিমি পরাজিত হলে বোনাস সাউন্ড
+		level1_playPlusPointSound();
 		level1_doors[level1_chosenPath].visited = true;
 		level1_doorsOpened++;
 		level1_wrongDoorsResolved++;
@@ -831,7 +844,7 @@ inline void level1_updateCacti()
 			if (level1_energy < 0) level1_energy = 0;
 			level1_playerHurtTimer = CACTUS_HIT_INVULN;
 			level1_cacti[i].active = false;
-			level1_playNegPointSound(); // ক্যাকটাসে আঘাত খেলে negPoint.MP3 বাজবে
+			level1_playNegPointSound();
 
 			if (level1_energy <= 0) {
 				level1_state = L1_GAME_OVER;
@@ -960,7 +973,6 @@ inline void renderLevel1()
 
 	case L1_RESULT:
 	{
-					  // Victory Audio Trigger
 					  if (!level1_hasPlayedEndAudio) {
 						  level1_playWinSound();
 						  level1_hasPlayedEndAudio = true;
@@ -986,7 +998,6 @@ inline void renderLevel1()
 
 	case L1_GAME_OVER:
 	{
-						 // Game Over Audio Trigger
 						 if (!level1_hasPlayedEndAudio) {
 							 level1_playLoseSound();
 							 level1_hasPlayedEndAudio = true;
@@ -1009,7 +1020,6 @@ inline void renderLevel1()
 	}
 	}
 
-	// Settings gear button & popup overlay
 	level1_drawSettingsUI();
 }
 
@@ -1113,7 +1123,6 @@ inline bool level1_pointInTreasure(int mx, int my)
 
 inline void handleLevel1DoorClicks(int mx, int my)
 {
-	// 1. Settings icon toggle
 	float distSettings = sqrtf((float)((mx - LEVEL1_SETTING_BTN_X) * (mx - LEVEL1_SETTING_BTN_X) +
 		(my - LEVEL1_SETTING_BTN_Y) * (my - LEVEL1_SETTING_BTN_Y)));
 	if (distSettings <= LEVEL1_SETTING_BTN_R) {
@@ -1121,9 +1130,7 @@ inline void handleLevel1DoorClicks(int mx, int my)
 		return;
 	}
 
-	// 2. Settings sub-buttons
 	if (level1_showSettingsMenu) {
-		// 'R' - Restart
 		float distR = sqrtf((float)((mx - LEVEL1_SETTING_BTN_X) * (mx - LEVEL1_SETTING_BTN_X) +
 			(my - LEVEL1_SUB_R_Y) * (my - LEVEL1_SUB_R_Y)));
 		if (distR <= LEVEL1_SUB_BTN_R) {
@@ -1131,7 +1138,6 @@ inline void handleLevel1DoorClicks(int mx, int my)
 			return;
 		}
 
-		// 'P' - Pause / Resume
 		float distP = sqrtf((float)((mx - LEVEL1_SETTING_BTN_X) * (mx - LEVEL1_SETTING_BTN_X) +
 			(my - LEVEL1_SUB_P_Y) * (my - LEVEL1_SUB_P_Y)));
 		if (distP <= LEVEL1_SUB_BTN_R) {
@@ -1139,11 +1145,21 @@ inline void handleLevel1DoorClicks(int mx, int my)
 			return;
 		}
 
-		// 'M' - Menu (playbutton.h / gameState = 5)
 		float distM = sqrtf((float)((mx - LEVEL1_SETTING_BTN_X) * (mx - LEVEL1_SETTING_BTN_X) +
 			(my - LEVEL1_SUB_M_Y) * (my - LEVEL1_SUB_M_Y)));
 		if (distM <= LEVEL1_SUB_BTN_R) {
 			gameState = 5;
+			return;
+		}
+
+		// Sound 'S' Toggle Click
+		float distS = sqrtf((float)((mx - LEVEL1_SETTING_BTN_X) * (mx - LEVEL1_SETTING_BTN_X) +
+			(my - LEVEL1_SUB_S_Y) * (my - LEVEL1_SUB_S_Y)));
+		if (distS <= LEVEL1_SUB_BTN_R) {
+			isSoundMuted = !isSoundMuted;
+			if (isSoundMuted) {
+				mciSendString("stop bgMusic", NULL, 0, NULL);
+			}
 			return;
 		}
 	}
@@ -1173,8 +1189,8 @@ inline void handleLevel1DoorClicks(int mx, int my)
 	else if (level1_state == L1_TREASURE) {
 		if (level1_pointInTreasure(mx, my)) {
 			level1_treasureOpened = true;
-			level1_updateScore(500); // Level completion bonus
-			level1_playPlusPointSound(); // ট্রেজার খুললে সাউন্ড
+			level1_updateScore(500);
+			level1_playPlusPointSound();
 			level1_treasureGlowTimer = 0;
 			level1_state = L1_RESULT;
 			level1_stateTimer = 0;
@@ -1187,6 +1203,12 @@ inline void handleLevel1Keyboard(unsigned char key)
 	if (key == 'r' || key == 'R') setupLevel1();
 	if (key == 'p' || key == 'P') level1_isPaused = !level1_isPaused;
 	if (key == 'm' || key == 'M') gameState = 5;
+	if (key == 's' || key == 'S') {
+		isSoundMuted = !isSoundMuted;
+		if (isSoundMuted) {
+			mciSendString("stop bgMusic", NULL, 0, NULL);
+		}
+	}
 	if ((key == 'n' || key == 'N') && level1_state == L1_RESULT) gameState = 6;
 }
 

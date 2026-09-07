@@ -23,6 +23,7 @@ extern bool level2_keyCollected[4];
 extern int level2_keyColor[4][3];
 extern char level2_message[120];
 extern int level2_messageTimer;
+extern bool isSoundMuted;
 
 void level2_updateScore(int addPoints);
 
@@ -209,7 +210,7 @@ inline void renderLevel2Combat()
 	iRectangle(20, SCREEN_HEIGHT - 40, 200, 20);
 	iText(20, SCREEN_HEIGHT - 55, "Energy");
 
-	// 2. Enemy Energy Bar (Character-এর Energy Bar-এর ঠিক নিচে)
+	// 2. Enemy Energy Bar
 	iSetColor(200, 200, 200);
 	iFilledRectangle(20, SCREEN_HEIGHT - 80, 200, 20);
 	iSetColor(200, 0, 0);
@@ -684,7 +685,6 @@ inline void renderLevel2DoorsContent(int doorClosedImg, int doorOpenImg)
 {
 	if (!level2_doorsVisible) return;
 
-	// Guardian Fight রেন্ডারিং
 	if (level2combat_active) {
 		renderLevel2Combat();
 		return;
@@ -885,7 +885,6 @@ inline void handleL2DoorClicks(int mx, int my)
 	}
 }
 
-// Fixed update helper to advance combat
 inline void updateLevel2CombatIfActive()
 {
 	if (level2combat_active) {
