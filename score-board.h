@@ -12,13 +12,13 @@ extern int gameState;
 extern int level1_highScore;
 extern int level2_highScore;
 
-// Back Button Position & Size (Matching option.h)
+// Back Button Position & Size
 #define HS_BACK_BTN_X 750
 #define HS_BACK_BTN_Y 30
 #define HS_BACK_BTN_WIDTH 200
 #define HS_BACK_BTN_HEIGHT 60
 
-// লেভেল ১ এর সেভ করা হাইস্কোর নিশ্চিতভাবে লোড করার ফাংশন
+// lvl1 highscore load func
 inline void fetchLevel1HighScore() {
 	FILE* fp = NULL;
 	fopen_s(&fp, "level1_highscore.txt", "r");
@@ -28,7 +28,7 @@ inline void fetchLevel1HighScore() {
 	}
 }
 
-// লেভেল ২ এর সেভ করা হাইস্কোর নিশ্চিতভাবে লোড করার ফাংশন
+// lvl2 highscore load func
 inline void fetchLevel2HighScore() {
 	FILE* fp = NULL;
 	fopen_s(&fp, "level2_highscore.txt", "r");
@@ -38,6 +38,7 @@ inline void fetchLevel2HighScore() {
 	}
 }
 
+// important func
 inline void renderHighscorePage() {
 	static int bgScoreBoardImg = -1, backBtnImg = -1;
 	if (bgScoreBoardImg == -1) {
@@ -45,7 +46,7 @@ inline void renderHighscorePage() {
 		backBtnImg = iLoadImage("Image/backbutton.png");
 	}
 
-	// প্রতিবার হাইস্কোর পেজে আসার সাথে সাথে টেক্সট ফাইল থেকে আপডেট হাইস্কোর রিড করবে
+	// evrytime in highscore pg, read updated highscore
 	fetchLevel1HighScore();
 	fetchLevel2HighScore();
 
@@ -57,23 +58,24 @@ inline void renderHighscorePage() {
 		iFilledRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 	}
 
-	// তিনটি ডিফিকাল্টি লেভেলের জন্য স্ট্রিং তৈরি
+	// 3 lvl string making
 	char easyBuf[80];
 	char mediumBuf[80];
 	char hardBuf[80];
 
+	//text show
 	sprintf_s(easyBuf, sizeof(easyBuf), "EASY LEVEL HIGHSCORE   :  %d", level1_highScore);
 	sprintf_s(mediumBuf, sizeof(mediumBuf), "MEDIUM LEVEL HIGHSCORE :  %d", level2_highScore);
 	sprintf_s(hardBuf, sizeof(hardBuf), "HARD LEVEL HIGHSCORE   :  0");
 
-	// সব লেখার রঙ কালো (Black)
+	// Black
 	iSetColor(0, 0, 0);
 
-	// 1. Easy Level (লেভেল ১ এর আসল হাইস্কোর)
+	// 1. Easy Level real highscore
 	iText(280, 360, easyBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 	iText(281, 360, easyBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 
-	// 2. Medium Level (লেভেল ২ এর আসল হাইস্কোর)
+	// 2. Medium Level real highscore
 	iText(280, 300, mediumBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 	iText(281, 300, mediumBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 

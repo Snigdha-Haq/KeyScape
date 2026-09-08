@@ -17,10 +17,10 @@
 
 extern int gameState;
 
-// ---------------- GLOBAL SOUND TOGGLE STATE ----------------
+// GLOBAL SOUND TOGGLE STATE
 bool isSoundMuted = false;
 
-// ---------------- SOUND EFFECT HELPERS ----------------
+// SOUND EFFECT HELPERS
 inline void playPlusPointSound() {
 	if (isSoundMuted) return;
 	mciSendString("close sfx_plus", NULL, 0, NULL);
@@ -49,7 +49,7 @@ inline void playLoseSound() {
 	mciSendString("play sfx_lose from 0", NULL, 0, NULL);
 }
 
-// ---------------- BASIC LEVEL STATE ----------------
+// player position in window
 static float level2_playerX = 100.0f;
 static float level2_playerY = 80.0f;
 
@@ -60,7 +60,7 @@ static float level2_playerY = 80.0f;
 
 static int level2_playerWidth = LEVEL2_PLAYER_NORMAL_W;
 static int level2_playerHeight = LEVEL2_PLAYER_NORMAL_H;
-static int level2_playerSpeed = 5;
+static int level2_playerSpeed = 5;// player each update, screen moves 5 unit
 static const float level2_groundY = 80.0f;
 
 // Slide mechanism
@@ -68,7 +68,7 @@ static bool level2_isSliding = false;
 static int level2_slideTimer = 0;
 #define LEVEL2_SLIDE_DURATION 28
 
-// Autonomous speeds towards player
+// Auto speeds towards player
 static float level2_enemyAutoSpeed = 3.8f;
 
 static bool level2_facingRight = true;
@@ -97,7 +97,7 @@ bool level2_keyFound = false;
 static bool level2_isPaused = false;
 static bool level2_hasPlayedEndAudio = false;
 
-// ---------------- IN-GAME SETTINGS POPUP MENU ----------------
+// IN-GAME SETTINGS button
 static bool level2_showSettingsMenu = false;
 #define LEVEL2_SETTING_BTN_X 945
 #define LEVEL2_SETTING_BTN_Y 45
@@ -109,7 +109,7 @@ static bool level2_showSettingsMenu = false;
 #define LEVEL2_SUB_M_Y       200
 #define LEVEL2_SUB_S_Y       250
 
-// ---------------- SCORE & 2X MULTIPLIER ----------------
+// SCORE & 2X MULTIPLIER
 int level2_score = 0;
 int level2_highScore = 0;
 static bool level2_highScoreLoaded = false;
@@ -117,7 +117,7 @@ static bool level2_highScoreLoaded = false;
 static int level2_scoreMultiplier = 1;
 static int level2_multiplierTimer = 0;
 
-// ---------------- 2X FLOATING ORB ----------------
+// 2X FLOATING ORB
 struct Level2PowerUp {
 	float x, y;
 	int size;
@@ -127,6 +127,7 @@ struct Level2PowerUp {
 static Level2PowerUp level2_power2x;
 static int level2_powerSpawnCounter = 0;
 
+//High Score File
 inline void level2_loadHighScore()
 {
 	FILE* fp = NULL;
@@ -138,6 +139,7 @@ inline void level2_loadHighScore()
 	level2_highScoreLoaded = true;
 }
 
+//Save High Score
 inline void level2_saveHighScore()
 {
 	FILE* fp = NULL;
@@ -147,7 +149,7 @@ inline void level2_saveHighScore()
 		fclose(fp);
 	}
 }
-
+//Score Update
 inline void level2_updateScore(int addPoints)
 {
 	if (addPoints > 0) {
@@ -164,7 +166,7 @@ inline void level2_updateScore(int addPoints)
 	}
 }
 
-// ---------------- KEYS ----------------
+// KEYS
 #define LEVEL2_NUM_KEYS 4
 #define LEVEL2_KEY_SIZE 40
 
@@ -177,6 +179,7 @@ struct Level2Key {
 	bool collected;
 };
 
+//key spawn
 static Level2Key level2_keys[LEVEL2_NUM_KEYS];
 static int level2_keySpawnDistance[LEVEL2_NUM_KEYS] = { 700, 2200, 3900, 5300 };
 
@@ -189,7 +192,7 @@ int level2_keyColor[LEVEL2_NUM_KEYS][3] = {
 
 bool level2_keyCollected[LEVEL2_NUM_KEYS] = { false, false, false, false };
 
-// ---------------- OBSTACLES ----------------
+// OBSTACLES
 #define LEVEL2_NUM_OBSTACLES 12
 
 struct Level2Obstacle {
@@ -205,6 +208,7 @@ struct Level2Obstacle {
 	bool hit;
 };
 
+// OBSTACLES spawn
 static Level2Obstacle level2_obstacles[LEVEL2_NUM_OBSTACLES];
 static int level2_obstacleSpawnDistance[LEVEL2_NUM_OBSTACLES] = {
 	450, 950, 1500, 1950, 2600, 3100, 3600, 4200, 4700, 5300, 5800, 6300
@@ -224,18 +228,18 @@ inline void level2_drawBoldText(int x, int y, const char* str, void* font)
 	iText(x, y + 1, (char*)str, font);
 	iText(x + 1, y + 1, (char*)str, font);
 }
-
+// collision detection
 inline bool level2_rectOverlap(float ax, float ay, int aw, int ah, float bx, float by, int bw, int bh)
 {
 	return (ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by);
 }
-
+//call key drawing func
 inline void level2_drawKey(float x, float y, int size, int r, int g, int b)
 {
 	level2_drawKeyVisual(x, y, size, r, g, b);
 }
 
-// ---------------- 2X ORB DRAWING ----------------
+// 2X ORB DRAWING
 inline void level2_draw2XOrb(float x, float y)
 {
 	iSetColor(255, 215, 0);
@@ -250,7 +254,7 @@ inline void level2_draw2XOrb(float x, float y)
 	iSetColor(180, 20, 10);
 	level2_drawBoldText((int)x + 10, (int)y + 12, "2X", GLUT_BITMAP_TIMES_ROMAN_24);
 }
-
+//draw settings button
 inline void level2_drawSettingsUI()
 {
 	iSetColor(30, 45, 65);
@@ -309,7 +313,7 @@ inline void level2_drawSettingsUI()
 	}
 }
 
-// ---------------- SETUP & RESET ----------------
+// SETUP & RESET
 inline void setupLevel2()
 {
 	srand((unsigned int)time(0));
@@ -400,7 +404,7 @@ inline void setupLevel2()
 		level2_obstacles[i].y = level2_obstacles[i].baseY;
 	}
 }
-
+// draw func call
 inline void renderLevel2()
 {
 	static int UnderSeaBg = -1, doorClosedImg = -1, doorOpenImg = -1, idleImg = -1, slideImg = -1;
@@ -618,7 +622,7 @@ inline void renderLevel2()
 
 	level2_drawSettingsUI();
 }
-
+//game play logic
 inline void level2_fixedUpdate()
 {
 	if (level2_isPaused || level2_gameOver || level2_keyFound) {
@@ -843,6 +847,7 @@ inline void level2_fixedUpdate()
 	}
 }
 
+//mouse click func
 inline void handleLevel2DoorClicks(int mx, int my)
 {
 	float distSettings = sqrtf((float)((mx - LEVEL2_SETTING_BTN_X) * (mx - LEVEL2_SETTING_BTN_X) +
@@ -895,6 +900,7 @@ inline void handleLevel2DoorClicks(int mx, int my)
 	handleL2DoorClicks(mx, my);
 }
 
+//up,dn arrow handle
 inline void handleLevel2SpecialKeyboard(unsigned char key)
 {
 	if (level2_isPaused || level2_gameOver || level2_keyFound) return;
@@ -916,7 +922,7 @@ inline void handleLevel2SpecialKeyboard(unsigned char key)
 		}
 	}
 }
-
+// normal keyboard handler
 inline void handleLevel2Keyboard(unsigned char key)
 {
 	if (key == 'r' || key == 'R') {

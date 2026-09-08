@@ -12,14 +12,14 @@
 
 int x = 0;
 int y = 0;
-int gameState = 0; // 0 = Home, 1 = Level1, 2 = Option, 3 = Highscore, 4 = Credit, 5 = Play/Difficulty select, 6 = Level2
+int gameState = 0; // 0 = Home, 1 = Level1, 2 = Option, 3 = score, 4 = Credit, 5 = Play/Difficulty select, 6 = Level2
 
 static bool isBgMusicPlaying = false;
 static bool isMainMenuMusicPlaying = false;
 
-// ---------------- ইন-গেম ব্যাকগ্রাউন্ড মিউজিক ----------------
+// inside game bg music
 inline void playBgMusic() {
-	if (isSoundMuted) return; // সাউন্ড মিউট থাকলে প্লে হবে না
+	if (isSoundMuted) return; // if muted, not play
 	if (!isBgMusicPlaying) {
 		mciSendString("close bgMusic", NULL, 0, NULL);
 		mciSendString("open \"Audios/movement.mp3\" type mpegvideo alias bgMusic", NULL, 0, NULL);
@@ -36,9 +36,9 @@ inline void stopBgMusic() {
 	}
 }
 
-// ---------------- মেইন মেনু ও অপশন ব্যাকগ্রাউন্ড মিউজিক ----------------
+// menu bg music
 inline void playMainMenuMusic() {
-	if (isSoundMuted) return; // সাউন্ড মিউট থাকলে প্লে হবে না
+	if (isSoundMuted) return; // if muted, not play
 	if (!isMainMenuMusicPlaying) {
 		mciSendString("close mainMusic", NULL, 0, NULL);
 		mciSendString("open \"Audios/mainSound.MP3\" type mpegvideo alias mainMusic", NULL, 0, NULL);
@@ -60,14 +60,14 @@ void iDraw()
 	iClear();
 	static int lastGameState = -1;
 
-	// সাউন্ড মিউট স্টেট অনুযায়ী মিউজিক হ্যান্ডলিং
+	// music handling using "S" on/off
 	if (isSoundMuted) {
 		stopBgMusic();
 		stopMainMenuMusic();
 	}
 	else {
-		// অডিও ট্রানজিশন ম্যানেজমেন্ট:
-		// ১. গেমপ্লে স্ক্রিন (লেভেল ১ বা লেভেল ২ অ্যাক্টিভ থাকা অবস্থায়)
+		// audio transition mngment
+		// 1. game play scrn (lvl 1,2)
 		bool isLevel1Active = (gameState == 1 && level1_state != L1_GAME_OVER && level1_state != L1_RESULT);
 		bool isLevel2Active = (gameState == 6 && !level2_gameOver && !level2_keyFound);
 
@@ -75,12 +75,12 @@ void iDraw()
 			stopMainMenuMusic();
 			playBgMusic();
 		}
-		// ২. মেনু ও অন্যান্য সব পেজ (Home, Option, Highscore, Credit, Difficulty Select)
+		// 2. (Home, Option, Highscore, Credit, Difficulty Select)
 		else if (gameState == 0 || gameState == 2 || gameState == 3 || gameState == 4 || gameState == 5) {
 			stopBgMusic();
 			playMainMenuMusic();
 		}
-		// ৩. গেম ওভার বা উইন হলে ব্যাকগ্রাউন্ড মিউজিক থামবে (যাতে উইন/লুজ মেলোডি পরিষ্কার শোনা যায়)
+		// 3. game win/lose
 		else {
 			stopBgMusic();
 			stopMainMenuMusic();
@@ -150,7 +150,7 @@ void iMouse(int button, int state, int mx, int my)
 
 void iSpecialKeyboard(unsigned char key)
 {
-	// লেভেল ১ এবং লেভেল ২ উভয়ের জাম্প/মুভমেন্ট স্পেশাল কিবোর্ড হ্যান্ডলার
+	// level 1 ,2 jump/movement 
 	if (gameState == 1) {
 		if (key == GLUT_KEY_UP && !level1_isJumping && level1_state == L1_RUNNING && !level1_isPaused) {
 			level1_isJumping = true;
@@ -170,7 +170,7 @@ void iKeyboard(unsigned char key)
 	if (gameState == 6) {
 		handleLevel2Keyboard(key);
 	}
-	if (key == 27) { // ESC চেপে যেকোনো সময় সরাসরি হোমে ফেরা
+	if (key == 27) { // ESC press to back in home
 		gameState = 0;
 	}
 }
@@ -187,7 +187,7 @@ int main()
 	iInitialize(1000, 600, "KeyScape");
 	iStart();
 
-	// গেম উইন্ডো বন্ধ হলে অডিও ক্লিনআপ
+	// music clean up for close game window
 	stopBgMusic();
 	stopMainMenuMusic();
 	return 0;

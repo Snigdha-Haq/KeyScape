@@ -19,12 +19,12 @@ inline void renderOptionPage() {
 	// bg image
 	iShowImage(0, 0, 1000, 600, optionBgImg);
 
-	// টেক্সট সামান্য ডানে (X=400) এবং প্রতিটি লাইনের মাঝে ফাঁকা জায়গা বৃদ্ধি (Gap=42px)
+	
 	iSetColor(0, 0, 0);
 
 	// 1. UP : Jump
 	iText(400, 310, "UP          :  Jump", GLUT_BITMAP_TIMES_ROMAN_24);
-	iText(401, 310, "UP          :  Jump", GLUT_BITMAP_TIMES_ROMAN_24); // বোল্ড এফেক্ট
+	iText(401, 310, "UP          :  Jump", GLUT_BITMAP_TIMES_ROMAN_24); // bold
 
 	// 2. DN : Slide
 	iText(400, 268, "DN          :  Slide", GLUT_BITMAP_TIMES_ROMAN_24);
