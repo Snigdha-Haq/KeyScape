@@ -35,8 +35,8 @@ void playNegPointSound();
 //  LEVEL 2 COMBAT - GUARDIAN FIGHT DATA & LOGIC
 // =================================================================
 #define L2C_ENEMY_MAX_ENERGY      150
-#define L2C_KNIFE_DAMAGE           12
-#define L2C_SHOOT_DAMAGE           12
+#define L2C_KNIFE_DAMAGE           5
+#define L2C_SHOOT_DAMAGE           5
 #define L2C_ENEMY_ATTACK_DAMAGE    15
 #define L2C_KNIFE_COOLDOWN_FRAMES  20
 #define L2C_SHOOT_COOLDOWN_FRAMES  12
