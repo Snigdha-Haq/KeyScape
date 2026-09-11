@@ -107,7 +107,9 @@ inline void renderLevel3Combat()
 	static int slideImg = -1;
 
 	if (bgImg == -1) {
-		bgImg = iLoadImage("Image/UnderSeacombat.png");
+		bgImg = iLoadImage("Image/bgInsideCave.png");
+		if (bgImg < 0) bgImg = iLoadImage("Image/UnderSeacombat.png");
+
 		idleImg = iLoadImage("Image/idle_1.png");
 
 		enemyIdleImg = iLoadImage("Image/Enemy_idle.png");

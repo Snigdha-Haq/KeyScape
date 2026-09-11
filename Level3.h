@@ -72,7 +72,7 @@ static bool level3_facingRight = true;
 
 static int level3_bgX = 0;
 static int level3_distanceCovered = 0;
-#define LEVEL3_TARGET_DISTANCE 6800
+#define LEVEL3_TARGET_DISTANCE 7200
 
 // Animation
 static bool level3_isMoving = false;
@@ -163,7 +163,7 @@ inline void level3_updateScore(int addPoints)
 
 // 5 KEYS CONFIGURATION
 #define LEVEL3_NUM_KEYS 5
-#define LEVEL3_KEY_SIZE 38
+#define LEVEL3_KEY_SIZE 42
 
 struct Level3Key {
 	float y;
@@ -175,7 +175,7 @@ struct Level3Key {
 };
 
 static Level3Key level3_keys[LEVEL3_NUM_KEYS];
-static int level3_keySpawnDistance[LEVEL3_NUM_KEYS] = { 650, 1800, 3100, 4400, 5600 };
+static int level3_keySpawnDistance[LEVEL3_NUM_KEYS] = { 800, 2000, 3200, 4400, 5600 };
 
 int level3_keyColor[LEVEL3_NUM_KEYS][3] = {
 	{ 255, 215, 0 },   // 0: Gold
@@ -200,21 +200,15 @@ struct Level3Obstacle {
 
 static Level3Obstacle level3_obstacles[LEVEL3_NUM_OBSTACLES];
 static int level3_obstacleSpawnDistance[LEVEL3_NUM_OBSTACLES] = {
-	450, 950, 1500, 1950, 2600, 3100, 3600, 4200, 4700, 5300, 5800, 6300
+	450, 1100, 1600, 2300, 2800, 3500, 4000, 4700, 5200, 5900, 6300, 6700
 };
 
 char level3_message[120] = "";
 int level3_messageTimer = 0;
 int level3_finishStage = 0;
 
-// 5 DOORS CONFIGURATION
+// 5 CAVE ENTRANCES / DOORS CONFIGURATION
 #define LEVEL3_NUM_DOORS 5
-#define LEVEL3_DOOR_WIDTH   105
-#define LEVEL3_DOOR_HEIGHT 170
-#define LEVEL3_DOOR_GAP    45
-#define LEVEL3_DOORS_START_X ((SCREEN_WIDTH - (LEVEL3_NUM_DOORS * LEVEL3_DOOR_WIDTH + (LEVEL3_NUM_DOORS - 1) * LEVEL3_DOOR_GAP)) / 2)
-#define LEVEL3_DOOR_Y 100
-
 #define LEVEL3_OPT_W   150
 #define LEVEL3_OPT_H   70
 #define LEVEL3_OPT_GAP 30
@@ -224,7 +218,7 @@ struct Level3Door {
 	int x, y, width, height;
 	bool visited;
 	int assignedKeyColorId;
-	int handlerIndex; // 0..4
+	int handlerIndex; // 0..4 (Sequential: Cave 0->Door1, ..., Cave 4->Door5/Boss)
 };
 
 static Level3Door level3_doors[LEVEL3_NUM_DOORS];
@@ -445,23 +439,21 @@ inline void setupLevel3()
 		level3_obstacles[i].y = level3_obstacles[i].baseY;
 	}
 
-	// Setup 5 Doors & Randomize
-	int doorColors[5] = { 0, 1, 2, 3, 4 };
-	int handlers[5] = { 0, 1, 2, 3, 4 }; // 0..3: Tasks, 4: Boss/Real Key
-	for (int i = 4; i > 0; i--) {
-		int j = rand() % (i + 1);
-		int tc = doorColors[i]; doorColors[i] = doorColors[j]; doorColors[j] = tc;
-		int th = handlers[i]; handlers[i] = handlers[j]; handlers[j] = th;
-	}
+	// Setup 5 Cave Entrances based on bgCave.png
+	int caveX[5] = { 215, 325, 445, 565, 680 };
+	int caveY = 160;
+	int caveW = 90;
+	int caveH = 150;
 
+	// Sequential 1-by-1 setup: Cave 0 -> Door1, ..., Cave 4 -> Door5 (Final Key/Combat)
 	for (int i = 0; i < LEVEL3_NUM_DOORS; i++) {
-		level3_doors[i].x = LEVEL3_DOORS_START_X + i * (LEVEL3_DOOR_WIDTH + LEVEL3_DOOR_GAP);
-		level3_doors[i].y = LEVEL3_DOOR_Y;
-		level3_doors[i].width = LEVEL3_DOOR_WIDTH;
-		level3_doors[i].height = LEVEL3_DOOR_HEIGHT;
+		level3_doors[i].x = caveX[i];
+		level3_doors[i].y = caveY;
+		level3_doors[i].width = caveW;
+		level3_doors[i].height = caveH;
 		level3_doors[i].visited = false;
-		level3_doors[i].assignedKeyColorId = doorColors[i];
-		level3_doors[i].handlerIndex = handlers[i];
+		level3_doors[i].assignedKeyColorId = i; // Key 0 to Cave 0, Key 1 to Cave 1, etc.
+		level3_doors[i].handlerIndex = i;       // Handler 0..4 sequentially
 	}
 
 	level3_doorsVisible = false;
@@ -476,14 +468,14 @@ inline void setupLevel3()
 // RENDER FUNCTION
 inline void renderLevel3()
 {
-	static int UnderSeaBg = -1, doorClosedImg = -1, doorOpenImg = -1, idleImg = -1, slideImg = -1;
+	static int jungleBg = -1, caveBg = -1, insideCaveBg = -1, idleImg = -1, slideImg = -1;
 	static int runFrames[8], jumpFrames[3], obstacleImgs[3] = { -1, -1, -1 };
 	static int bgSeaScoreImg = -1, bgSeaOutImg = -1;
 
-	if (UnderSeaBg == -1) {
-		UnderSeaBg = iLoadImage("Image/UnderSea.png");
-		doorClosedImg = iLoadImage("Image/doorclosed.png");
-		doorOpenImg = iLoadImage("Image/dooropened.png");
+	if (jungleBg == -1) {
+		jungleBg = iLoadImage("Image/bgJungle.png");
+		caveBg = iLoadImage("Image/bgCave.png");
+		insideCaveBg = iLoadImage("Image/bgInsideCave.png");
 		idleImg = iLoadImage("Image/idle_1.png");
 		slideImg = iLoadImage("Image/slide.png");
 
@@ -544,11 +536,31 @@ inline void renderLevel3()
 		return;
 	}
 
-	// 3. BACKGROUND
-	iShowImage(level3_bgX, 0, SCREEN_WIDTH, SCREEN_HEIGHT, UnderSeaBg);
-	iShowImage(level3_bgX + SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, UnderSeaBg);
+	// 3. BACKGROUND (SMOOTH SCROLL TRANSITION FROM JUNGLE TO CAVE)
+	int caveScreenX = LEVEL3_TARGET_DISTANCE - level3_distanceCovered;
 
-	// 4. OBSTACLES, KEYS & POWERUPS
+	if (level3_insideTask) {
+		if (insideCaveBg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, insideCaveBg);
+		else if (caveBg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, caveBg);
+	}
+	else if (level3_doorsVisible) {
+		if (caveBg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, caveBg);
+	}
+	else {
+		if (caveScreenX < SCREEN_WIDTH) {
+			int jungleX = caveScreenX - SCREEN_WIDTH;
+			if (jungleBg >= 0) iShowImage(jungleX, 0, SCREEN_WIDTH, SCREEN_HEIGHT, jungleBg);
+			if (caveBg >= 0) iShowImage(caveScreenX, 0, SCREEN_WIDTH, SCREEN_HEIGHT, caveBg);
+		}
+		else {
+			if (jungleBg >= 0) {
+				iShowImage(level3_bgX, 0, SCREEN_WIDTH, SCREEN_HEIGHT, jungleBg);
+				iShowImage(level3_bgX + SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, jungleBg);
+			}
+		}
+	}
+
+	// 4. OBSTACLES, KEYS & POWERUPS (RUNNING PHASE)
 	if (!level3_doorsVisible) {
 		for (int i = 0; i < LEVEL3_NUM_OBSTACLES; i++) {
 			if (level3_obstacles[i].active && obstacleImgs[level3_obstacles[i].type] >= 0) {
@@ -560,7 +572,7 @@ inline void renderLevel3()
 		for (int i = 0; i < LEVEL3_NUM_KEYS; i++) {
 			if (!level3_keys[i].collected) {
 				float screenKeyX = (float)(level3_keys[i].trackPos - level3_distanceCovered + 100);
-				if (screenKeyX >= -50 && screenKeyX <= SCREEN_WIDTH + 50) {
+				if (screenKeyX >= -80 && screenKeyX <= SCREEN_WIDTH + 80) {
 					level3_drawKey(screenKeyX, level3_keys[i].y, level3_keys[i].size,
 						level3_keyColor[i][0], level3_keyColor[i][1], level3_keyColor[i][2]);
 				}
@@ -574,29 +586,57 @@ inline void renderLevel3()
 		iShowImage((int)level3_playerX, (int)level3_playerY, level3_playerWidth, level3_playerHeight, playerImg);
 	}
 
-	// 5. DOORS & TASK LOGIC
+	// 5. CAVE DOORS & 5 KEYS FLOATING ON ENTRANCES
 	if (level3_doorsVisible) {
 		if (level3combat_active) {
 			renderLevel3Combat();
 		}
 		else if (!level3_insideTask) {
 			if (level3_finishStage == 0) {
+				float floatOffset = sinf(level3_shineTimer * 0.1f) * 6.0f;
+
+				// Find which cave is currently active (next sequentially)
+				int currentTargetCave = 0;
+				while (currentTargetCave < LEVEL3_NUM_DOORS && level3_doors[currentTargetCave].visited) {
+					currentTargetCave++;
+				}
+
 				for (int i = 0; i < LEVEL3_NUM_DOORS; i++) {
-					int imgToUse = level3_doors[i].visited ? doorOpenImg : doorClosedImg;
-					iShowImage(level3_doors[i].x, level3_doors[i].y, level3_doors[i].width, level3_doors[i].height, imgToUse);
-
 					int colId = level3_doors[i].assignedKeyColorId;
-					int circleX = level3_doors[i].x + level3_doors[i].width / 2;
-					int circleY = level3_doors[i].y + level3_doors[i].height + 25;
-
-					iSetColor(level3_keyColor[colId][0], level3_keyColor[colId][1], level3_keyColor[colId][2]);
-					iFilledCircle(circleX, circleY, 14);
-					iSetColor(255, 255, 255);
-					iCircle(circleX, circleY, 14);
+					float keyCenterX = (float)(level3_doors[i].x + level3_doors[i].width / 2 - 25);
+					float keyCenterY = (float)(level3_doors[i].y + 35) + floatOffset;
 
 					if (level3_doors[i].visited) {
+						// Completed Cave: Golden Ring & Status
+						iSetColor(80, 200, 100);
+						iCircle(level3_doors[i].x + level3_doors[i].width / 2, (int)keyCenterY + 20, 28);
+						level3_drawKey(keyCenterX, keyCenterY, 50,
+							level3_keyColor[colId][0], level3_keyColor[colId][1], level3_keyColor[colId][2]);
 						iSetColor(255, 215, 0);
-						iText(level3_doors[i].x + 25, level3_doors[i].y + level3_doors[i].height + 45, "OPEN!");
+						level3_drawBoldText(level3_doors[i].x + 10, level3_doors[i].y - 30, "CLEARED!", GLUT_BITMAP_HELVETICA_18);
+					}
+					else if (i == currentTargetCave) {
+						// Active Cave: Pulsing Ring
+						float pulse = (sinf(level3_shineTimer * 0.2f) + 1.0f) * 4.0f;
+						iSetColor(255, 255, 255);
+						iCircle(level3_doors[i].x + level3_doors[i].width / 2, (int)keyCenterY + 20, (int)(32 + pulse));
+						iSetColor(level3_keyColor[colId][0], level3_keyColor[colId][1], level3_keyColor[colId][2]);
+						iCircle(level3_doors[i].x + level3_doors[i].width / 2, (int)keyCenterY + 20, 30);
+
+						level3_drawKey(keyCenterX, keyCenterY, 50,
+							level3_keyColor[colId][0], level3_keyColor[colId][1], level3_keyColor[colId][2]);
+
+						iSetColor(255, 255, 255);
+						level3_drawBoldText(level3_doors[i].x + 22, level3_doors[i].y - 30, "ENTER", GLUT_BITMAP_HELVETICA_18);
+					}
+					else {
+						// Locked Future Cave: Dimmed Key
+						iSetColor(80, 80, 80);
+						iCircle(level3_doors[i].x + level3_doors[i].width / 2, (int)keyCenterY + 20, 28);
+						level3_drawKey(keyCenterX, keyCenterY, 50, 120, 120, 120);
+
+						iSetColor(180, 180, 180);
+						level3_drawBoldText(level3_doors[i].x + 18, level3_doors[i].y - 30, "LOCKED", GLUT_BITMAP_HELVETICA_18);
 					}
 				}
 			}
@@ -606,7 +646,7 @@ inline void renderLevel3()
 				iFilledRectangle(SCREEN_WIDTH / 2 - 170, 190, 340, 45);
 				iSetColor(0, 0, 0);
 				iRectangle(SCREEN_WIDTH / 2 - 170, 190, 340, 45);
-				iText(SCREEN_WIDTH / 2 - 145, 208, "REAL KEY FOUND! Click to Open Clam!");
+				iText(SCREEN_WIDTH / 2 - 145, 208, "FINAL KEY FOUND! Click to Open Clam!");
 			}
 			else if (level3_finishStage >= 2) {
 				level3_drawClamAndPearl(SCREEN_WIDTH / 2, 300);
@@ -620,6 +660,11 @@ inline void renderLevel3()
 			}
 		}
 		else {
+			iSetColor(10, 10, 20);
+			iFilledRectangle(SCREEN_WIDTH / 2 - 380, 190, 760, 240);
+			iSetColor(255, 215, 0);
+			iRectangle(SCREEN_WIDTH / 2 - 380, 190, 760, 240);
+
 			int h = level3_doors[level3_currentTaskDoor].handlerIndex;
 			if (h == 0) L3Door1_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
 			else if (h == 1) L3Door2_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
@@ -627,7 +672,7 @@ inline void renderLevel3()
 			else if (h == 3) L3Door4_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
 
 			iSetColor(255, 255, 255);
-			iText(SCREEN_WIDTH / 2 - 180, LEVEL3_OPT_Y + LEVEL3_OPT_H + 30, "Choose correctly to unlock the door, wrong answer deducts energy!");
+			iText(SCREEN_WIDTH / 2 - 180, LEVEL3_OPT_Y + LEVEL3_OPT_H + 30, "Choose correctly to unlock, wrong answer deducts energy!");
 		}
 	}
 
@@ -640,7 +685,7 @@ inline void renderLevel3()
 		iSetColor(0, 0, 0);
 		iCircle(hx, hy, 11);
 	}
-	iSetColor(0, 0, 0);
+	iSetColor(255, 255, 255);
 	iText(20, 48, "Keys Collected (5)");
 
 	// Energy
@@ -650,6 +695,7 @@ inline void renderLevel3()
 	iFilledRectangle(20, SCREEN_HEIGHT - 40, 2 * level3_energy, 20);
 	iSetColor(0, 0, 0);
 	iRectangle(20, SCREEN_HEIGHT - 40, 200, 20);
+	iSetColor(255, 255, 255);
 	iText(20, SCREEN_HEIGHT - 55, "Energy");
 
 	// Score
@@ -657,9 +703,14 @@ inline void renderLevel3()
 	sprintf_s(scBuf, sizeof(scBuf), "Score: %d", level3_score);
 	level3_drawBoldText(SCREEN_WIDTH - 150, SCREEN_HEIGHT - 40, scBuf, GLUT_BITMAP_HELVETICA_18);
 
+	if (level3_doorsVisible && !level3_insideTask && level3_finishStage == 0 && !level3combat_active) {
+		iSetColor(255, 255, 255);
+		level3_drawBoldText(SCREEN_WIDTH / 2 - 230, SCREEN_HEIGHT - 45, "Complete caves 1 to 5 in order! Final Key in Cave 5.", GLUT_BITMAP_HELVETICA_18);
+	}
+
 	if (level3_messageTimer > 0) {
-		iSetColor(220, 20, 20);
-		level3_drawBoldText(SCREEN_WIDTH / 2 - 180, SCREEN_HEIGHT - 70, level3_message, GLUT_BITMAP_HELVETICA_18);
+		iSetColor(255, 40, 40);
+		level3_drawBoldText(SCREEN_WIDTH / 2 - 200, SCREEN_HEIGHT - 75, level3_message, GLUT_BITMAP_HELVETICA_18);
 	}
 
 	level3_drawSettingsUI();
@@ -733,7 +784,13 @@ inline void level3_fixedUpdate()
 		level3_updateScore(1);
 		extraMoveEnemies = (float)level3_playerSpeed;
 
-		if (level3_distanceCovered >= LEVEL3_TARGET_DISTANCE) level3_doorsVisible = true;
+		if (level3_distanceCovered >= LEVEL3_TARGET_DISTANCE) {
+			level3_doorsVisible = true;
+			level3_playerX = 100.0f;
+			level3_isSliding = false;
+			level3_playerWidth = LEVEL3_PLAYER_NORMAL_W;
+			level3_playerHeight = LEVEL3_PLAYER_NORMAL_H;
+		}
 	}
 	else if (!level3_doorsVisible && !level3_isSliding && isSpecialKeyPressed(GLUT_KEY_LEFT)) {
 		if (level3_distanceCovered > 0) {
@@ -769,11 +826,11 @@ inline void level3_fixedUpdate()
 			}
 		}
 
-		// Collisions
+		// Collisions with key pickups
 		for (int i = 0; i < LEVEL3_NUM_KEYS; i++) {
 			if (level3_keys[i].collected) continue;
 			float screenKeyX = (float)(level3_keys[i].trackPos - level3_distanceCovered + 100);
-			if (level3_rectOverlap(screenKeyX, level3_keys[i].y, level3_keys[i].size, level3_keys[i].size,
+			if (level3_rectOverlap(screenKeyX - 5.0f, level3_keys[i].y - 5.0f, level3_keys[i].size + 10, level3_keys[i].size + 10,
 				level3_playerX, level3_playerY, level3_playerWidth, level3_playerHeight)) {
 				level3_keys[i].collected = true;
 				level3_keyCollected[level3_keys[i].id] = true;
@@ -902,23 +959,48 @@ inline void handleLevel3Clicks(int mx, int my)
 		return;
 	}
 
+	// Sequential progression check: which cave is currently unlocked?
+	int currentTargetCave = 0;
+	while (currentTargetCave < LEVEL3_NUM_DOORS && level3_doors[currentTargetCave].visited) {
+		currentTargetCave++;
+	}
+
+	// Click detection on Cave Entrances
 	for (int i = 0; i < LEVEL3_NUM_DOORS; i++) {
 		if (mx >= level3_doors[i].x && mx <= level3_doors[i].x + level3_doors[i].width &&
 			my >= level3_doors[i].y && my <= level3_doors[i].y + level3_doors[i].height) {
-			int requiredKey = level3_doors[i].assignedKeyColorId;
 
+			if (level3_doors[i].visited) {
+				strcpy_s(level3_message, sizeof(level3_message), "Cave already cleared! Move to the next cave.");
+				level3_messageTimer = 70;
+				return;
+			}
+
+			// Must complete in strict sequence (Cave 0 -> Cave 1 -> ... -> Cave 4)
+			if (i != currentTargetCave) {
+				char warnBuf[100];
+				sprintf_s(warnBuf, sizeof(warnBuf), "Locked! You must complete Cave %d first.", currentTargetCave + 1);
+				strcpy_s(level3_message, sizeof(level3_message), warnBuf);
+				level3_messageTimer = 80;
+				playNegPointSound();
+				return;
+			}
+
+			int requiredKey = level3_doors[i].assignedKeyColorId;
 			if (!level3_keyCollected[requiredKey]) {
 				level3_playNegPointSound();
-				strcpy_s(level3_message, sizeof(level3_message), "Key missing! Go back and collect matching key.");
+				strcpy_s(level3_message, sizeof(level3_message), "Key missing! You didn't collect this cave's key.");
 				level3_messageTimer = 90;
 				return;
 			}
 
-			if (level3_doors[i].handlerIndex == 4) { // Real Key Boss Fight
+			// Final Cave (Cave 4 / Handler 4): Combat fight to win the Final Real Key
+			if (level3_doors[i].handlerIndex == 4) {
 				level3_doors[i].visited = true;
 				startLevel3Combat();
 			}
-			else if (!level3_doors[i].visited) {
+			else {
+				// Regular Task Caves (1 to 4)
 				level3_currentTaskDoor = i;
 				level3_insideTask = true;
 				int h = level3_doors[i].handlerIndex;
@@ -926,10 +1008,6 @@ inline void handleLevel3Clicks(int mx, int my)
 				else if (h == 1) L3Door2_GenerateTask();
 				else if (h == 2) L3Door3_GenerateTask();
 				else if (h == 3) L3Door4_GenerateTask();
-			}
-			else {
-				strcpy_s(level3_message, sizeof(level3_message), "Real key is not here! Pick another door.");
-				level3_messageTimer = 70;
 			}
 			return;
 		}
