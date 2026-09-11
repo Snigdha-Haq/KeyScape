@@ -1,14 +1,14 @@
 ﻿#ifndef PLAYBUTTON_H_INCLUDED
 #define PLAYBUTTON_H_INCLUDED
-extern int gameState; //shared variable from  main.cpp 
+extern int gameState; //shared variable from main.cpp 
 // ---------------- DIFFICULTY BUTTON LAYOUT ----------------
 #define DIFF_BTN_WIDTH  200
 #define DIFF_BTN_HEIGHT 60
 #define DIFF_BTN_Y      330          //  common Y 
-#define EASY_BTN_X    50             //  left key 
-#define EASY_BTN_Y    DIFF_BTN_Y      
+#define EASY_BTN_X     50             //  left key 
+#define EASY_BTN_Y     DIFF_BTN_Y     
 #define MEDIUM_BTN_X  412             // middle key 
-#define MEDIUM_BTN_Y  DIFF_BTN_Y      
+#define MEDIUM_BTN_Y  DIFF_BTN_Y     
 #define HARD_BTN_X    770             // right key
 #define HARD_BTN_Y    DIFF_BTN_Y     
 // ---------------- BACK BUTTON (bottom-right now) ----------------
@@ -58,7 +58,7 @@ inline void handlePlayButtonClicks(int mx, int my)
 	}
 	if (mx >= HARD_BTN_X && mx <= HARD_BTN_X + DIFF_BTN_WIDTH &&
 		my >= HARD_BTN_Y && my <= HARD_BTN_Y + DIFF_BTN_HEIGHT) {
-
+		gameState = 7; // Hard -> Level3
 	}
 	if (mx >= PLAY_BACK_BTN_X && mx <= PLAY_BACK_BTN_X + PLAY_BACK_BTN_WIDTH &&
 		my >= PLAY_BACK_BTN_Y && my <= PLAY_BACK_BTN_Y + PLAY_BACK_BTN_HEIGHT) {

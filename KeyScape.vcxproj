@@ -67,8 +67,14 @@
   <ItemGroup>
     <ClInclude Include="homepage.h" />
     <ClInclude Include="L2doors.h" />
+    <ClInclude Include="L3door1.h" />
+    <ClInclude Include="L3door2.h" />
+    <ClInclude Include="L3door3.h" />
+    <ClInclude Include="L3door4.h" />
+    <ClInclude Include="L3door5.h" />
     <ClInclude Include="Level1.h" />
     <ClInclude Include="Level2.h" />
+    <ClInclude Include="Level3.h" />
     <ClInclude Include="option.h" />
     <ClInclude Include="playbutton.h" />
     <ClInclude Include="score-board.h" />

@@ -5,6 +5,7 @@
 
 #include "level1.h"
 #include "level2.h"
+#include "level3.h"
 #include "option.h"
 #include "playbutton.h"
 #include "score-board.h"
@@ -12,7 +13,7 @@
 
 int x = 0;
 int y = 0;
-int gameState = 0; // 0 = Home, 1 = Level1, 2 = Option, 3 = score, 4 = Credit, 5 = Play/Difficulty select, 6 = Level2
+int gameState = 0; // 0 = Home, 1 = Level1, 2 = Option, 3 = score, 4 = Credit, 5 = Play/Difficulty select, 6 = Level2, 7 = Level3
 
 static bool isBgMusicPlaying = false;
 static bool isMainMenuMusicPlaying = false;
@@ -67,11 +68,12 @@ void iDraw()
 	}
 	else {
 		// audio transition mngment
-		// 1. game play scrn (lvl 1,2)
+		// 1. game play scrn (lvl 1, 2, 3)
 		bool isLevel1Active = (gameState == 1 && level1_state != L1_GAME_OVER && level1_state != L1_RESULT);
 		bool isLevel2Active = (gameState == 6 && !level2_gameOver && !level2_keyFound);
+		bool isLevel3Active = (gameState == 7 && !level3_gameOver && !level3_gameWon);
 
-		if (isLevel1Active || isLevel2Active) {
+		if (isLevel1Active || isLevel2Active || isLevel3Active) {
 			stopMainMenuMusic();
 			playBgMusic();
 		}
@@ -115,6 +117,12 @@ void iDraw()
 		}
 		renderLevel2();
 	}
+	else if (gameState == 7) {
+		if (lastGameState != 7) {
+			setupLevel3();
+		}
+		renderLevel3();
+	}
 
 	lastGameState = gameState;
 }
@@ -144,13 +152,16 @@ void iMouse(int button, int state, int mx, int my)
 		else if (gameState == 6) {
 			handleLevel2DoorClicks(mx, my);
 		}
+		else if (gameState == 7) {
+			handleLevel3Clicks(mx, my);
+		}
 	}
 	if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {}
 }
 
 void iSpecialKeyboard(unsigned char key)
 {
-	// level 1 ,2 jump/movement 
+	// level 1, 2, 3 jump/movement 
 	if (gameState == 1) {
 		if (key == GLUT_KEY_UP && !level1_isJumping && level1_state == L1_RUNNING && !level1_isPaused) {
 			level1_isJumping = true;
@@ -159,6 +170,9 @@ void iSpecialKeyboard(unsigned char key)
 	}
 	else if (gameState == 6) {
 		handleLevel2SpecialKeyboard(key);
+	}
+	else if (gameState == 7) {
+		handleLevel3SpecialKeyboard(key);
 	}
 }
 
@@ -170,6 +184,9 @@ void iKeyboard(unsigned char key)
 	if (gameState == 6) {
 		handleLevel2Keyboard(key);
 	}
+	if (gameState == 7) {
+		handleLevel3Keyboard(key);
+	}
 	if (key == 27) { // ESC press to back in home
 		gameState = 0;
 	}
@@ -179,6 +196,7 @@ void fixedUpdate()
 {
 	if (gameState == 1) level1_fixedUpdate();
 	if (gameState == 6) level2_fixedUpdate();
+	if (gameState == 7) level3_fixedUpdate();
 }
 
 int main()
