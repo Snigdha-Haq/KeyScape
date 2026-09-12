@@ -15,6 +15,7 @@
 extern int gameState;
 extern int level1_highScore;
 extern int level2_highScore;
+extern int level3_highScore; // Level 3 এর highscore লিংক করা হলো
 extern bool isSoundMuted;
 
 // ---------------- MENU SETTINGS UI CONSTANTS ----------------
@@ -52,6 +53,16 @@ inline void fetchLevel2HighScore() {
 	}
 }
 
+// lvl3 highscore load func
+inline void fetchLevel3HighScore() {
+	FILE* fp = NULL;
+	fopen_s(&fp, "level3_highscore.txt", "r");
+	if (fp != NULL) {
+		fscanf_s(fp, "%d", &level3_highScore);
+		fclose(fp);
+	}
+}
+
 // important func
 inline void renderHighscorePage() {
 	static int bgScoreBoardImg = -1, backBtnImg = -1;
@@ -74,6 +85,7 @@ inline void renderHighscorePage() {
 	// evrytime in highscore pg, read updated highscore
 	fetchLevel1HighScore();
 	fetchLevel2HighScore();
+	fetchLevel3HighScore();
 
 	if (bgScoreBoardImg >= 0) {
 		iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bgScoreBoardImg);
@@ -88,25 +100,25 @@ inline void renderHighscorePage() {
 	char mediumBuf[80];
 	char hardBuf[80];
 
-	//text show
+	// text show with live values
 	sprintf_s(easyBuf, sizeof(easyBuf), "EASY LEVEL HIGHSCORE   :  %d", level1_highScore);
 	sprintf_s(mediumBuf, sizeof(mediumBuf), "MEDIUM LEVEL HIGHSCORE :  %d", level2_highScore);
-	sprintf_s(hardBuf, sizeof(hardBuf), "HARD LEVEL HIGHSCORE   :  0");
+	sprintf_s(hardBuf, sizeof(hardBuf), "HARD LEVEL HIGHSCORE   :  %d", level3_highScore);
 
 	// Black
 	iSetColor(0, 0, 0);
 
 	// 1. Easy Level real highscore
-	iText(280, 360, easyBuf, GLUT_BITMAP_TIMES_ROMAN_24);
-	iText(281, 360, easyBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(325, 310, easyBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(326, 310, easyBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 
 	// 2. Medium Level real highscore
-	iText(280, 300, mediumBuf, GLUT_BITMAP_TIMES_ROMAN_24);
-	iText(281, 300, mediumBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(325, 250, mediumBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(326, 250, mediumBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 
-	// 3. Hard Level
-	iText(280, 240, hardBuf, GLUT_BITMAP_TIMES_ROMAN_24);
-	iText(281, 240, hardBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+	// 3. Hard Level real highscore
+	iText(325, 190, hardBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(326, 190, hardBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 
 	// Back Button
 	if (backBtnImg != -1) {
