@@ -103,7 +103,7 @@ static bool  level1_isJumping = false;
 static float level1_jumpVelocity = 0.0f;
 
 // ---------------- CACTUS OBSTACLES ----------------
-#define MAX_CACTUS         4
+#define MAX_CACTUS          4
 #define CACTUS_W          46
 #define CACTUS_H          72
 #define CACTUS_MIN_GAP   110
@@ -345,53 +345,102 @@ inline void level1_drawHUD()
 // ---------------- SETTINGS UI ----------------
 inline void level1_drawSettingsUI()
 {
-	iSetColor(30, 45, 65);
-	iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SETTING_BTN_Y, LEVEL1_SETTING_BTN_R);
-	iSetColor(255, 255, 255);
-	iCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SETTING_BTN_Y, LEVEL1_SETTING_BTN_R);
+	static int btnSettings = -1;
+	static int btnRestart = -1;
+	static int btnPauPlay = -1;
+	static int btnPause = -1;
+	static int btnMenu = -1;
+	static int btnSoundOn = -1;
+	static int btnSoundOff = -1;
 
-	for (int i = 0; i < 8; i++) {
-		float angle = (float)i * 3.14159f / 4.0f;
-		int x1 = LEVEL1_SETTING_BTN_X + (int)(cosf(angle) * 12.0f);
-		int y1 = LEVEL1_SETTING_BTN_Y + (int)(sinf(angle) * 12.0f);
-		int x2 = LEVEL1_SETTING_BTN_X + (int)(cosf(angle) * 20.0f);
-		int y2 = LEVEL1_SETTING_BTN_Y + (int)(sinf(angle) * 20.0f);
-		iLine(x1, y1, x2, y2);
+	if (btnSettings == -1) {
+		btnSettings = iLoadImage("Image/settings.png");
+		if (btnSettings < 0) btnSettings = iLoadImage("settings.png");
+
+		btnRestart = iLoadImage("Image/restart.png");
+		if (btnRestart < 0) btnRestart = iLoadImage("restart.png");
+
+		btnPauPlay = iLoadImage("Image/PauPlay.png");
+		if (btnPauPlay < 0) btnPauPlay = iLoadImage("PauPlay.png");
+
+		btnPause = iLoadImage("Image/pause.png");
+		if (btnPause < 0) btnPause = iLoadImage("pause.png");
+
+		btnMenu = iLoadImage("Image/menu.png");
+		if (btnMenu < 0) btnMenu = iLoadImage("menu.png");
+
+		btnSoundOn = iLoadImage("Image/soundOn.png");
+		if (btnSoundOn < 0) btnSoundOn = iLoadImage("soundOn.png");
+
+		btnSoundOff = iLoadImage("Image/soundOff.png");
+		if (btnSoundOff < 0) btnSoundOff = iLoadImage("soundOff.png");
 	}
-	iSetColor(230, 240, 255);
-	iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SETTING_BTN_Y, 8);
-	iSetColor(30, 45, 65);
-	iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SETTING_BTN_Y, 4);
+
+	// Settings Gear Icon (44x44 px)
+	if (btnSettings >= 0) {
+		iShowImage(LEVEL1_SETTING_BTN_X - 22, LEVEL1_SETTING_BTN_Y - 22, 44, 44, btnSettings);
+	}
+	else {
+		iSetColor(30, 45, 65);
+		iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SETTING_BTN_Y, LEVEL1_SETTING_BTN_R);
+	}
 
 	if (level1_showSettingsMenu) {
-		// Restart 'R'
-		iSetColor(220, 50, 50);
-		iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_R_Y, LEVEL1_SUB_BTN_R);
-		iSetColor(255, 255, 255);
-		iCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_R_Y, LEVEL1_SUB_BTN_R);
-		level1_drawBoldText(LEVEL1_SETTING_BTN_X - 6, LEVEL1_SUB_R_Y - 7, "R", GLUT_BITMAP_TIMES_ROMAN_24);
+		// Restart (40x40 px)
+		if (btnRestart >= 0) {
+			iShowImage(LEVEL1_SETTING_BTN_X - 20, LEVEL1_SUB_R_Y - 20, 40, 40, btnRestart);
+		}
+		else {
+			iSetColor(220, 50, 50);
+			iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_R_Y, LEVEL1_SUB_BTN_R);
+			level1_drawBoldText(LEVEL1_SETTING_BTN_X - 6, LEVEL1_SUB_R_Y - 7, "R", GLUT_BITMAP_TIMES_ROMAN_24);
+		}
 
-		// Pause 'P'
-		iSetColor(50, 130, 220);
-		iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_P_Y, LEVEL1_SUB_BTN_R);
-		iSetColor(255, 255, 255);
-		iCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_P_Y, LEVEL1_SUB_BTN_R);
-		level1_drawBoldText(LEVEL1_SETTING_BTN_X - 6, LEVEL1_SUB_P_Y - 7, "P", GLUT_BITMAP_TIMES_ROMAN_24);
+		// Pause / Play (40x40 px)
+		if (level1_isPaused) {
+			if (btnPause >= 0) iShowImage(LEVEL1_SETTING_BTN_X - 20, LEVEL1_SUB_P_Y - 20, 40, 40, btnPause);
+			else {
+				iSetColor(50, 130, 220);
+				iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_P_Y, LEVEL1_SUB_BTN_R);
+				level1_drawBoldText(LEVEL1_SETTING_BTN_X - 6, LEVEL1_SUB_P_Y - 7, "P", GLUT_BITMAP_TIMES_ROMAN_24);
+			}
+		}
+		else {
+			if (btnPauPlay >= 0) iShowImage(LEVEL1_SETTING_BTN_X - 20, LEVEL1_SUB_P_Y - 20, 40, 40, btnPauPlay);
+			else {
+				iSetColor(50, 130, 220);
+				iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_P_Y, LEVEL1_SUB_BTN_R);
+				level1_drawBoldText(LEVEL1_SETTING_BTN_X - 6, LEVEL1_SUB_P_Y - 7, "P", GLUT_BITMAP_TIMES_ROMAN_24);
+			}
+		}
 
-		// Menu 'M'
-		iSetColor(45, 175, 75);
-		iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_M_Y, LEVEL1_SUB_BTN_R);
-		iSetColor(255, 255, 255);
-		iCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_M_Y, LEVEL1_SUB_BTN_R);
-		level1_drawBoldText(LEVEL1_SETTING_BTN_X - 8, LEVEL1_SUB_M_Y - 7, "M", GLUT_BITMAP_TIMES_ROMAN_24);
+		// Menu (40x40 px)
+		if (btnMenu >= 0) {
+			iShowImage(LEVEL1_SETTING_BTN_X - 20, LEVEL1_SUB_M_Y - 20, 40, 40, btnMenu);
+		}
+		else {
+			iSetColor(45, 175, 75);
+			iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_M_Y, LEVEL1_SUB_BTN_R);
+			level1_drawBoldText(LEVEL1_SETTING_BTN_X - 8, LEVEL1_SUB_M_Y - 7, "M", GLUT_BITMAP_TIMES_ROMAN_24);
+		}
 
-		// Sound 'S' Toggle Button
-		if (isSoundMuted) iSetColor(120, 120, 120);
-		else iSetColor(230, 140, 20);
-		iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_S_Y, LEVEL1_SUB_BTN_R);
-		iSetColor(255, 255, 255);
-		iCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_S_Y, LEVEL1_SUB_BTN_R);
-		level1_drawBoldText(LEVEL1_SETTING_BTN_X - 6, LEVEL1_SUB_S_Y - 7, "S", GLUT_BITMAP_TIMES_ROMAN_24);
+		// Sound On/Off (40x40 px)
+		if (isSoundMuted) {
+			if (btnSoundOff >= 0) iShowImage(LEVEL1_SETTING_BTN_X - 20, LEVEL1_SUB_S_Y - 20, 40, 40, btnSoundOff);
+			else {
+				iSetColor(120, 120, 120);
+				iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_S_Y, LEVEL1_SUB_BTN_R);
+				level1_drawBoldText(LEVEL1_SETTING_BTN_X - 6, LEVEL1_SUB_S_Y - 7, "S", GLUT_BITMAP_TIMES_ROMAN_24);
+			}
+		}
+		else {
+			if (btnSoundOn >= 0) iShowImage(LEVEL1_SETTING_BTN_X - 20, LEVEL1_SUB_S_Y - 20, 40, 40, btnSoundOn);
+			else {
+				iSetColor(230, 140, 20);
+				iFilledCircle(LEVEL1_SETTING_BTN_X, LEVEL1_SUB_S_Y, LEVEL1_SUB_BTN_R);
+				level1_drawBoldText(LEVEL1_SETTING_BTN_X - 6, LEVEL1_SUB_S_Y - 7, "S", GLUT_BITMAP_TIMES_ROMAN_24);
+			}
+		}
 	}
 
 	if (level1_isPaused && level1_state != L1_GAME_OVER && level1_state != L1_RESULT) {
