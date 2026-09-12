@@ -2,6 +2,10 @@
 #define SCORE_BOARD_H_INCLUDED
 
 #include <cstdio>
+#include <cmath>
+#include <windows.h>
+#include <mmsystem.h>
+#pragma comment(lib, "winmm.lib")
 
 #ifndef SCREEN_WIDTH
 #define SCREEN_WIDTH 1000
@@ -11,10 +15,20 @@
 extern int gameState;
 extern int level1_highScore;
 extern int level2_highScore;
+extern bool isSoundMuted;
+
+// ---------------- MENU SETTINGS UI CONSTANTS ----------------
+static bool sb_showSettingsMenu = false;
+#define SB_SETTING_BTN_X 945
+#define SB_SETTING_BTN_Y 45
+#define SB_SETTING_BTN_R 22
+
+#define SB_SUB_BTN_R     20
+#define SB_SUB_S_Y       100
 
 // Back Button Position & Size
-#define HS_BACK_BTN_X 750
-#define HS_BACK_BTN_Y 30
+#define HS_BACK_BTN_X 412
+#define HS_BACK_BTN_Y 0
 #define HS_BACK_BTN_WIDTH 200
 #define HS_BACK_BTN_HEIGHT 60
 
@@ -41,9 +55,20 @@ inline void fetchLevel2HighScore() {
 // important func
 inline void renderHighscorePage() {
 	static int bgScoreBoardImg = -1, backBtnImg = -1;
+	static int btnSettings = -1, btnSoundOn = -1, btnSoundOff = -1;
+
 	if (bgScoreBoardImg == -1) {
 		bgScoreBoardImg = iLoadImage("Image/BgScoreBoard.png");
 		backBtnImg = iLoadImage("Image/backbutton.png");
+
+		btnSettings = iLoadImage("Image/settings.png");
+		if (btnSettings < 0) btnSettings = iLoadImage("settings.png");
+
+		btnSoundOn = iLoadImage("Image/soundOn.png");
+		if (btnSoundOn < 0) btnSoundOn = iLoadImage("soundOn.png");
+
+		btnSoundOff = iLoadImage("Image/soundOff.png");
+		if (btnSoundOff < 0) btnSoundOff = iLoadImage("soundOff.png");
 	}
 
 	// evrytime in highscore pg, read updated highscore
@@ -93,9 +118,57 @@ inline void renderHighscorePage() {
 		iSetColor(255, 255, 255);
 		iText(HS_BACK_BTN_X + 10, HS_BACK_BTN_Y + 12, "<--", GLUT_BITMAP_HELVETICA_18);
 	}
+
+	// Settings Button (44x44 px)
+	if (btnSettings >= 0) {
+		iShowImage(SB_SETTING_BTN_X - 22, SB_SETTING_BTN_Y - 22, 44, 44, btnSettings);
+	}
+	else {
+		iSetColor(30, 45, 65);
+		iFilledCircle(SB_SETTING_BTN_X, SB_SETTING_BTN_Y, SB_SETTING_BTN_R);
+	}
+
+	// Pop-up Sound On/Off Button (40x40 px)
+	if (sb_showSettingsMenu) {
+		if (isSoundMuted) {
+			if (btnSoundOff >= 0) iShowImage(SB_SETTING_BTN_X - 20, SB_SUB_S_Y - 20, 40, 40, btnSoundOff);
+			else {
+				iSetColor(120, 120, 120);
+				iFilledCircle(SB_SETTING_BTN_X, SB_SUB_S_Y, SB_SUB_BTN_R);
+			}
+		}
+		else {
+			if (btnSoundOn >= 0) iShowImage(SB_SETTING_BTN_X - 20, SB_SUB_S_Y - 20, 40, 40, btnSoundOn);
+			else {
+				iSetColor(230, 140, 20);
+				iFilledCircle(SB_SETTING_BTN_X, SB_SUB_S_Y, SB_SUB_BTN_R);
+			}
+		}
+	}
 }
 
 inline void handleHighscoreClicks(int mx, int my) {
+	// Settings Click
+	float distSettings = sqrtf((float)((mx - SB_SETTING_BTN_X) * (mx - SB_SETTING_BTN_X) +
+		(my - SB_SETTING_BTN_Y) * (my - SB_SETTING_BTN_Y)));
+	if (distSettings <= SB_SETTING_BTN_R) {
+		sb_showSettingsMenu = !sb_showSettingsMenu;
+		return;
+	}
+
+	// Sound Toggle Click
+	if (sb_showSettingsMenu) {
+		float distS = sqrtf((float)((mx - SB_SETTING_BTN_X) * (mx - SB_SETTING_BTN_X) +
+			(my - SB_SUB_S_Y) * (my - SB_SUB_S_Y)));
+		if (distS <= SB_SUB_BTN_R) {
+			isSoundMuted = !isSoundMuted;
+			if (isSoundMuted) {
+				mciSendString("stop mainMusic", NULL, 0, NULL);
+			}
+			return;
+		}
+	}
+
 	if (mx >= HS_BACK_BTN_X && mx <= HS_BACK_BTN_X + HS_BACK_BTN_WIDTH &&
 		my >= HS_BACK_BTN_Y && my <= HS_BACK_BTN_Y + HS_BACK_BTN_HEIGHT) {
 		gameState = 0; // Return to Home Screen
