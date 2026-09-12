@@ -566,12 +566,23 @@ inline void renderLevel3()
 		if (bgSeaOutImg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bgSeaOutImg);
 		else { iSetColor(225, 230, 235); iFilledRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT); }
 
-		iSetColor(180, 25, 25);
-		level3_drawBoldText(440, 365, "YOU ARE OUT!", GLUT_BITMAP_TIMES_ROMAN_24);
-		char endScoreBuf[100];
-		sprintf_s(endScoreBuf, sizeof(endScoreBuf), "Score: %d     |     High Score: %d", level3_score, level3_highScore);
-		iSetColor(15, 35, 75);
-		level3_drawBoldText(390, 315, endScoreBuf, GLUT_BITMAP_HELVETICA_18);
+		// Level : HARD (Wooden Color)
+		iSetColor(160, 50, 15);
+		level3_drawBoldText(SCREEN_WIDTH / 2 - 70, 345, "Level : HARD", GLUT_BITMAP_TIMES_ROMAN_24);
+
+		// Your Score : (Black Color)
+		char endScoreBuf[64];
+		sprintf_s(endScoreBuf, sizeof(endScoreBuf), "Your Score : %d", level3_score);
+		int scoreOffset = (level3_score >= 1000) ? 90 : 80;
+		iSetColor(0, 0, 0);
+		level3_drawBoldText(SCREEN_WIDTH / 2 - scoreOffset, 280, endScoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+
+		// High-Score : (Black Color)
+		char endHighScoreBuf[64];
+		sprintf_s(endHighScoreBuf, sizeof(endHighScoreBuf), "High-Score : %d", level3_highScore);
+		int highOffset = (level3_highScore >= 1000) ? 95 : 85;
+		level3_drawBoldText(SCREEN_WIDTH / 2 - highOffset, 215, endHighScoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+
 		level3_drawSettingsUI();
 		return;
 	}
@@ -585,10 +596,23 @@ inline void renderLevel3()
 		if (bgSeaScoreImg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bgSeaScoreImg);
 		else { iSetColor(15, 35, 55); iFilledRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT); }
 
-		char scoreBuf[64];
-		sprintf_s(scoreBuf, sizeof(scoreBuf), "Your Score: %d", level3_score);
-		iSetColor(255, 255, 255);
-		level3_drawBoldText(395, 185, scoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+		// Level : HARD (Wooden Color)
+		iSetColor(160, 50, 15);
+		level3_drawBoldText(SCREEN_WIDTH / 2 - 70, 345, "Level : HARD", GLUT_BITMAP_TIMES_ROMAN_24);
+
+		// Your Score : (Black Color)
+		char yourScoreBuf[64];
+		sprintf_s(yourScoreBuf, sizeof(yourScoreBuf), "Your Score : %d", level3_score);
+		int scoreOffset = (level3_score >= 1000) ? 90 : 80;
+		iSetColor(0, 0, 0);
+		level3_drawBoldText(SCREEN_WIDTH / 2 - scoreOffset, 280, yourScoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+
+		// High-Score : (Black Color)
+		char highScoreBuf[64];
+		sprintf_s(highScoreBuf, sizeof(highScoreBuf), "High-Score : %d", level3_highScore);
+		int highOffset = (level3_highScore >= 1000) ? 95 : 85;
+		level3_drawBoldText(SCREEN_WIDTH / 2 - highOffset, 215, highScoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+
 		level3_drawSettingsUI();
 		return;
 	}

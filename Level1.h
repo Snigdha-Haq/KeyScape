@@ -1032,15 +1032,22 @@ inline void renderLevel1()
 						  iFilledRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 					  }
 
-					  char yourScoreBuf[64];
-					  sprintf_s(yourScoreBuf, sizeof(yourScoreBuf), "Your Score: %d", level1_score);
-					  iSetColor(255, 255, 255);
-					  level1_drawBoldText(395, 185, yourScoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+					  // Level : EASY (Wooden Color)
+					  iSetColor(160, 50, 15);
+					  level1_drawBoldText(SCREEN_WIDTH / 2 - 70, 345, "Level : EASY", GLUT_BITMAP_TIMES_ROMAN_24);
 
+					  // Your Score : (Black Color)
+					  char yourScoreBuf[64];
+					  sprintf_s(yourScoreBuf, sizeof(yourScoreBuf), "Your Score : %d", level1_score);
+					  int scoreOffset = (level1_score >= 1000) ? 90 : 80;
+					  iSetColor(0, 0, 0);
+					  level1_drawBoldText(SCREEN_WIDTH / 2 - scoreOffset, 280, yourScoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+
+					  // High-Score : (Black Color)
 					  char highScoreBuf[64];
-					  sprintf_s(highScoreBuf, sizeof(highScoreBuf), "HighScore: %d", level1_highScore);
-					  iSetColor(255, 240, 180);
-					  level1_drawBoldText(395, 125, highScoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+					  sprintf_s(highScoreBuf, sizeof(highScoreBuf), "High-Score : %d", level1_highScore);
+					  int highOffset = (level1_highScore >= 1000) ? 95 : 85;
+					  level1_drawBoldText(SCREEN_WIDTH / 2 - highOffset, 215, highScoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 					  break;
 	}
 
@@ -1057,13 +1064,22 @@ inline void renderLevel1()
 							 iFilledRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 						 }
 
-						 iSetColor(180, 25, 25);
-						 level1_drawBoldText(440, 365, "YOU ARE OUT!", GLUT_BITMAP_TIMES_ROMAN_24);
+						 // Level : EASY (Wooden Color)
+						 iSetColor(160, 50, 15);
+						 level1_drawBoldText(SCREEN_WIDTH / 2 - 70, 345, "Level : EASY", GLUT_BITMAP_TIMES_ROMAN_24);
 
-						 char endScoreBuf[100];
-						 sprintf_s(endScoreBuf, sizeof(endScoreBuf), "Score: %d     |     High Score: %d", level1_score, level1_highScore);
-						 iSetColor(15, 35, 75);
-						 level1_drawBoldText(390, 315, endScoreBuf, GLUT_BITMAP_HELVETICA_18);
+						 // Your Score : (Black Color)
+						 char endScoreBuf[64];
+						 sprintf_s(endScoreBuf, sizeof(endScoreBuf), "Your Score : %d", level1_score);
+						 int scoreOffset = (level1_score >= 1000) ? 90 : 80;
+						 iSetColor(0, 0, 0);
+						 level1_drawBoldText(SCREEN_WIDTH / 2 - scoreOffset, 280, endScoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
+
+						 // High-Score : (Black Color)
+						 char endHighScoreBuf[64];
+						 sprintf_s(endHighScoreBuf, sizeof(endHighScoreBuf), "High-Score : %d", level1_highScore);
+						 int highOffset = (level1_highScore >= 1000) ? 95 : 85;
+						 level1_drawBoldText(SCREEN_WIDTH / 2 - highOffset, 215, endHighScoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 						 break;
 	}
 	}
