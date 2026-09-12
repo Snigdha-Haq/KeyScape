@@ -7,6 +7,7 @@
 #include "level2.h"
 #include "level3.h"
 #include "option.h"
+#include "credit.h"
 #include "playbutton.h"
 #include "score-board.h"
 #include "homepage.h"
@@ -105,8 +106,7 @@ void iDraw()
 		renderHighscorePage();
 	}
 	else if (gameState == 4) {
-		iSetColor(255, 255, 255);
-		iText(430, 300, "Credits Screen (placeholder)");
+		renderCreditPage();
 	}
 	else if (gameState == 5) {
 		renderPlayButtonPage();
@@ -145,6 +145,9 @@ void iMouse(int button, int state, int mx, int my)
 		}
 		else if (gameState == 3) {
 			handleHighscoreClicks(mx, my);
+		}
+		else if (gameState == 4) {
+			handleCreditClicks(mx, my);
 		}
 		else if (gameState == 5) {
 			handlePlayButtonClicks(mx, my);
