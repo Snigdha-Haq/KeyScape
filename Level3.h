@@ -72,7 +72,16 @@ static bool level3_facingRight = true;
 
 static int level3_bgX = 0;
 static int level3_distanceCovered = 0;
-#define LEVEL3_TARGET_DISTANCE 7200
+#define LEVEL3_TARGET_DISTANCE 28800
+
+// EXCLAVE / ELEVATED PLATFORM CONFIGURATION (3 EXCLAVES - 4X LENGTH)
+#define LEVEL3_NUM_EXCLAVES      3
+#define LEVEL3_EXCLAVE_WIDTH     1170
+#define LEVEL3_EXCLAVE_HEIGHT    185
+#define LEVEL3_EXCLAVE_DRAW_Y    110.0f
+#define LEVEL3_EXCLAVE_SURFACE_Y 260.0f
+
+static int level3_exclaveStarts[LEVEL3_NUM_EXCLAVES] = { 5600, 12800, 20000 };
 
 // Animation
 static bool level3_isMoving = false;
@@ -161,7 +170,7 @@ inline void level3_updateScore(int addPoints)
 	}
 }
 
-// 5 KEYS CONFIGURATION
+// 5 KEYS CONFIGURATION (4X LENGTH SCALED)
 #define LEVEL3_NUM_KEYS 5
 #define LEVEL3_KEY_SIZE 42
 
@@ -175,7 +184,7 @@ struct Level3Key {
 };
 
 static Level3Key level3_keys[LEVEL3_NUM_KEYS];
-static int level3_keySpawnDistance[LEVEL3_NUM_KEYS] = { 800, 2000, 3200, 4400, 5600 };
+static int level3_keySpawnDistance[LEVEL3_NUM_KEYS] = { 3200, 7800, 15000, 18600, 22200 };
 
 int level3_keyColor[LEVEL3_NUM_KEYS][3] = {
 	{ 255, 215, 0 },   // 0: Gold
@@ -187,7 +196,7 @@ int level3_keyColor[LEVEL3_NUM_KEYS][3] = {
 
 bool level3_keyCollected[LEVEL3_NUM_KEYS] = { false, false, false, false, false };
 
-// 12 OBSTACLES
+// 12 OBSTACLES (4X LENGTH SCALED)
 #define LEVEL3_NUM_OBSTACLES 12
 
 struct Level3Obstacle {
@@ -200,7 +209,7 @@ struct Level3Obstacle {
 
 static Level3Obstacle level3_obstacles[LEVEL3_NUM_OBSTACLES];
 static int level3_obstacleSpawnDistance[LEVEL3_NUM_OBSTACLES] = {
-	450, 1100, 1600, 2300, 2800, 3500, 4000, 4700, 5200, 5900, 6300, 6700
+	1800, 4400, 11000, 12000, 18200, 19200, 25200, 26000, 26800, 27400, 27800, 28200
 };
 
 char level3_message[120] = "";
@@ -324,101 +333,51 @@ inline void level3_draw2XOrb(float x, float y)
 
 inline void level3_drawSettingsUI()
 {
-	static int btnSettings = -1;
-	static int btnRestart = -1;
-	static int btnPauPlay = -1;
-	static int btnPause = -1;
-	static int btnMenu = -1;
-	static int btnSoundOn = -1;
-	static int btnSoundOff = -1;
+	static int btnSettings = -1, btnRestart = -1, btnPauPlay = -1, btnPause = -1, btnMenu = -1, btnSoundOn = -1, btnSoundOff = -1;
 
 	if (btnSettings == -1) {
 		btnSettings = iLoadImage("Image/settings.png");
 		if (btnSettings < 0) btnSettings = iLoadImage("settings.png");
-
 		btnRestart = iLoadImage("Image/restart.png");
 		if (btnRestart < 0) btnRestart = iLoadImage("restart.png");
-
 		btnPauPlay = iLoadImage("Image/PauPlay.png");
 		if (btnPauPlay < 0) btnPauPlay = iLoadImage("PauPlay.png");
-
 		btnPause = iLoadImage("Image/pause.png");
 		if (btnPause < 0) btnPause = iLoadImage("pause.png");
-
 		btnMenu = iLoadImage("Image/menu.png");
 		if (btnMenu < 0) btnMenu = iLoadImage("menu.png");
-
 		btnSoundOn = iLoadImage("Image/soundOn.png");
 		if (btnSoundOn < 0) btnSoundOn = iLoadImage("soundOn.png");
-
 		btnSoundOff = iLoadImage("Image/soundOff.png");
 		if (btnSoundOff < 0) btnSoundOff = iLoadImage("soundOff.png");
 	}
 
-	// Settings Gear Icon (44x44 px)
-	if (btnSettings >= 0) {
-		iShowImage(LEVEL3_SETTING_BTN_X - 22, LEVEL3_SETTING_BTN_Y - 22, 44, 44, btnSettings);
-	}
-	else {
-		iSetColor(30, 45, 65);
-		iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SETTING_BTN_Y, LEVEL3_SETTING_BTN_R);
-	}
+	if (btnSettings >= 0) iShowImage(LEVEL3_SETTING_BTN_X - 22, LEVEL3_SETTING_BTN_Y - 22, 44, 44, btnSettings);
+	else { iSetColor(30, 45, 65); iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SETTING_BTN_Y, LEVEL3_SETTING_BTN_R); }
 
 	if (level3_showSettingsMenu) {
-		// Restart (40x40 px)
-		if (btnRestart >= 0) {
-			iShowImage(LEVEL3_SETTING_BTN_X - 20, LEVEL3_SUB_R_Y - 20, 40, 40, btnRestart);
-		}
-		else {
-			iSetColor(220, 50, 50);
-			iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SUB_R_Y, LEVEL3_SUB_BTN_R);
-			level3_drawBoldText(LEVEL3_SETTING_BTN_X - 6, LEVEL3_SUB_R_Y - 7, "R", GLUT_BITMAP_TIMES_ROMAN_24);
-		}
+		if (btnRestart >= 0) iShowImage(LEVEL3_SETTING_BTN_X - 20, LEVEL3_SUB_R_Y - 20, 40, 40, btnRestart);
+		else { iSetColor(220, 50, 50); iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SUB_R_Y, LEVEL3_SUB_BTN_R); level3_drawBoldText(LEVEL3_SETTING_BTN_X - 6, LEVEL3_SUB_R_Y - 7, "R", GLUT_BITMAP_TIMES_ROMAN_24); }
 
-		// Pause / Play (40x40 px)
 		if (level3_isPaused) {
 			if (btnPause >= 0) iShowImage(LEVEL3_SETTING_BTN_X - 20, LEVEL3_SUB_P_Y - 20, 40, 40, btnPause);
-			else {
-				iSetColor(50, 130, 220);
-				iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SUB_P_Y, LEVEL3_SUB_BTN_R);
-				level3_drawBoldText(LEVEL3_SETTING_BTN_X - 6, LEVEL3_SUB_P_Y - 7, "P", GLUT_BITMAP_TIMES_ROMAN_24);
-			}
+			else { iSetColor(50, 130, 220); iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SUB_P_Y, LEVEL3_SUB_BTN_R); level3_drawBoldText(LEVEL3_SETTING_BTN_X - 6, LEVEL3_SUB_P_Y - 7, "P", GLUT_BITMAP_TIMES_ROMAN_24); }
 		}
 		else {
 			if (btnPauPlay >= 0) iShowImage(LEVEL3_SETTING_BTN_X - 20, LEVEL3_SUB_P_Y - 20, 40, 40, btnPauPlay);
-			else {
-				iSetColor(50, 130, 220);
-				iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SUB_P_Y, LEVEL3_SUB_BTN_R);
-				level3_drawBoldText(LEVEL3_SETTING_BTN_X - 6, LEVEL3_SUB_P_Y - 7, "P", GLUT_BITMAP_TIMES_ROMAN_24);
-			}
+			else { iSetColor(50, 130, 220); iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SUB_P_Y, LEVEL3_SUB_BTN_R); level3_drawBoldText(LEVEL3_SETTING_BTN_X - 6, LEVEL3_SUB_P_Y - 7, "P", GLUT_BITMAP_TIMES_ROMAN_24); }
 		}
 
-		// Menu (40x40 px)
-		if (btnMenu >= 0) {
-			iShowImage(LEVEL3_SETTING_BTN_X - 20, LEVEL3_SUB_M_Y - 20, 40, 40, btnMenu);
-		}
-		else {
-			iSetColor(45, 175, 75);
-			iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SUB_M_Y, LEVEL3_SUB_BTN_R);
-			level3_drawBoldText(LEVEL3_SETTING_BTN_X - 8, LEVEL3_SUB_M_Y - 7, "M", GLUT_BITMAP_TIMES_ROMAN_24);
-		}
+		if (btnMenu >= 0) iShowImage(LEVEL3_SETTING_BTN_X - 20, LEVEL3_SUB_M_Y - 20, 40, 40, btnMenu);
+		else { iSetColor(45, 175, 75); iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SUB_M_Y, LEVEL3_SUB_BTN_R); level3_drawBoldText(LEVEL3_SETTING_BTN_X - 8, LEVEL3_SUB_M_Y - 7, "M", GLUT_BITMAP_TIMES_ROMAN_24); }
 
-		// Sound On/Off (40x40 px)
 		if (isSoundMuted) {
 			if (btnSoundOff >= 0) iShowImage(LEVEL3_SETTING_BTN_X - 20, LEVEL3_SUB_S_Y - 20, 40, 40, btnSoundOff);
-			else {
-				iSetColor(120, 120, 120);
-				iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SUB_S_Y, LEVEL3_SUB_BTN_R);
-				level3_drawBoldText(LEVEL3_SETTING_BTN_X - 6, LEVEL3_SUB_S_Y - 7, "S", GLUT_BITMAP_TIMES_ROMAN_24);
-			}
+			else { iSetColor(120, 120, 120); iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SUB_S_Y, LEVEL3_SUB_BTN_R); level3_drawBoldText(LEVEL3_SETTING_BTN_X - 6, LEVEL3_SUB_S_Y - 7, "S", GLUT_BITMAP_TIMES_ROMAN_24); }
 		}
 		else {
 			if (btnSoundOn >= 0) iShowImage(LEVEL3_SETTING_BTN_X - 20, LEVEL3_SUB_S_Y - 20, 40, 40, btnSoundOn);
-			else {
-				iSetColor(230, 140, 20);
-				iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SUB_S_Y, LEVEL3_SUB_BTN_R);
-				level3_drawBoldText(LEVEL3_SETTING_BTN_X - 6, LEVEL3_SUB_S_Y - 7, "S", GLUT_BITMAP_TIMES_ROMAN_24);
-			}
+			else { iSetColor(230, 140, 20); iFilledCircle(LEVEL3_SETTING_BTN_X, LEVEL3_SUB_S_Y, LEVEL3_SUB_BTN_R); level3_drawBoldText(LEVEL3_SETTING_BTN_X - 6, LEVEL3_SUB_S_Y - 7, "S", GLUT_BITMAP_TIMES_ROMAN_24); }
 		}
 	}
 
@@ -470,14 +429,30 @@ inline void setupLevel3()
 	level3_messageTimer = 0;
 
 	// Setup 5 Keys
-	bool keyAirList[LEVEL3_NUM_KEYS] = { false, true, false, true, false };
+	bool keyAirList[LEVEL3_NUM_KEYS] = { false, false, false, true, false };
 	for (int i = 0; i < LEVEL3_NUM_KEYS; i++) {
 		level3_keys[i].id = i;
 		level3_keys[i].isAir = keyAirList[i];
 		level3_keys[i].trackPos = level3_keySpawnDistance[i];
 		level3_keys[i].collected = false;
 		level3_keys[i].size = LEVEL3_KEY_SIZE;
-		level3_keys[i].y = level3_keys[i].isAir ? 290.0f : (level3_groundY + 25.0f);
+
+		// Check if key is located on ANY of the 3 exclaves
+		bool onAnExclave = false;
+		for (int e = 0; e < LEVEL3_NUM_EXCLAVES; e++) {
+			if (level3_keys[i].trackPos >= level3_exclaveStarts[e] &&
+				level3_keys[i].trackPos <= level3_exclaveStarts[e] + LEVEL3_EXCLAVE_WIDTH) {
+				onAnExclave = true;
+				break;
+			}
+		}
+
+		if (onAnExclave) {
+			level3_keys[i].y = LEVEL3_EXCLAVE_SURFACE_Y + 25.0f;
+		}
+		else {
+			level3_keys[i].y = level3_keys[i].isAir ? 290.0f : (level3_groundY + 25.0f);
+		}
 		level3_keyCollected[i] = false;
 	}
 
@@ -498,11 +473,10 @@ inline void setupLevel3()
 		level3_obstacles[i].y = level3_obstacles[i].baseY;
 	}
 
-	// EXACT CAVE CENTER COORDINATES (SHIFTED 30-35px RIGHT FOR PERFECT ALIGNMENT)
+	// Cave Coordinates
 	int caveCentersX[5] = { 145, 325, 500, 680, 860 };
 	int caveCenterY = 290;
 
-	// Sequential 1-by-1 setup
 	for (int i = 0; i < LEVEL3_NUM_DOORS; i++) {
 		level3_doors[i].centerX = caveCentersX[i];
 		level3_doors[i].centerY = caveCenterY;
@@ -527,14 +501,18 @@ inline void renderLevel3()
 {
 	static int jungleBg = -1, caveBg = -1, insideCaveBg = -1, idleImg = -1, slideImg = -1;
 	static int runFrames[8], jumpFrames[3], obstacleImgs[3] = { -1, -1, -1 };
-	static int bgSeaScoreImg = -1, bgSeaOutImg = -1;
+	static int bgSeaScoreImg = -1, bgSeaOutImg = -1, exclaveImg = -1;
 
 	if (jungleBg == -1) {
 		jungleBg = iLoadImage("Image/bgJungle.png");
+		if (jungleBg < 0) jungleBg = iLoadImage("Image/bgJungle.jpg");
+
 		caveBg = iLoadImage("Image/bgCave.png");
 		insideCaveBg = iLoadImage("Image/bgInsideCave.png");
 		idleImg = iLoadImage("Image/idle_1.png");
 		slideImg = iLoadImage("Image/slide.png");
+
+		exclaveImg = iLoadImage("Image/exclave.png");
 
 		runFrames[0] = iLoadImage("Image/run_1.png");
 		runFrames[1] = iLoadImage("Image/run_2.png");
@@ -566,18 +544,15 @@ inline void renderLevel3()
 		if (bgSeaOutImg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bgSeaOutImg);
 		else { iSetColor(225, 230, 235); iFilledRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT); }
 
-		// Level : HARD (Wooden Color)
 		iSetColor(160, 50, 15);
 		level3_drawBoldText(SCREEN_WIDTH / 2 - 70, 345, "Level : HARD", GLUT_BITMAP_TIMES_ROMAN_24);
 
-		// Your Score : (Black Color)
 		char endScoreBuf[64];
 		sprintf_s(endScoreBuf, sizeof(endScoreBuf), "Your Score : %d", level3_score);
 		int scoreOffset = (level3_score >= 1000) ? 90 : 80;
 		iSetColor(0, 0, 0);
 		level3_drawBoldText(SCREEN_WIDTH / 2 - scoreOffset, 280, endScoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 
-		// High-Score : (Black Color)
 		char endHighScoreBuf[64];
 		sprintf_s(endHighScoreBuf, sizeof(endHighScoreBuf), "High-Score : %d", level3_highScore);
 		int highOffset = (level3_highScore >= 1000) ? 95 : 85;
@@ -596,18 +571,15 @@ inline void renderLevel3()
 		if (bgSeaScoreImg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bgSeaScoreImg);
 		else { iSetColor(15, 35, 55); iFilledRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT); }
 
-		// Level : HARD (Wooden Color)
 		iSetColor(160, 50, 15);
 		level3_drawBoldText(SCREEN_WIDTH / 2 - 70, 345, "Level : HARD", GLUT_BITMAP_TIMES_ROMAN_24);
 
-		// Your Score : (Black Color)
 		char yourScoreBuf[64];
 		sprintf_s(yourScoreBuf, sizeof(yourScoreBuf), "Your Score : %d", level3_score);
 		int scoreOffset = (level3_score >= 1000) ? 90 : 80;
 		iSetColor(0, 0, 0);
 		level3_drawBoldText(SCREEN_WIDTH / 2 - scoreOffset, 280, yourScoreBuf, GLUT_BITMAP_TIMES_ROMAN_24);
 
-		// High-Score : (Black Color)
 		char highScoreBuf[64];
 		sprintf_s(highScoreBuf, sizeof(highScoreBuf), "High-Score : %d", level3_highScore);
 		int highOffset = (level3_highScore >= 1000) ? 95 : 85;
@@ -617,7 +589,7 @@ inline void renderLevel3()
 		return;
 	}
 
-	// 3. BACKGROUND (SMOOTH SCROLL TRANSITION FROM JUNGLE TO CAVE)
+	// 3. BACKGROUND
 	int caveScreenX = LEVEL3_TARGET_DISTANCE - level3_distanceCovered;
 
 	if (level3_insideTask) {
@@ -641,8 +613,23 @@ inline void renderLevel3()
 		}
 	}
 
-	// 4. OBSTACLES, KEYS & POWERUPS (RUNNING PHASE)
+	// 4. RUNNING PHASE
 	if (!level3_doorsVisible) {
+		// Draw all 3 Exclave Platforms
+		for (int e = 0; e < LEVEL3_NUM_EXCLAVES; e++) {
+			float screenExclaveX = (float)(level3_exclaveStarts[e] - level3_distanceCovered + 100);
+			if (screenExclaveX + LEVEL3_EXCLAVE_WIDTH > -200 && screenExclaveX < SCREEN_WIDTH + 200) {
+				if (exclaveImg >= 0) {
+					iShowImage((int)screenExclaveX, (int)LEVEL3_EXCLAVE_DRAW_Y, LEVEL3_EXCLAVE_WIDTH, LEVEL3_EXCLAVE_HEIGHT, exclaveImg);
+				}
+				else {
+					iSetColor(140, 100, 70);
+					iFilledRectangle((int)screenExclaveX, (int)LEVEL3_EXCLAVE_DRAW_Y, LEVEL3_EXCLAVE_WIDTH, LEVEL3_EXCLAVE_HEIGHT);
+				}
+			}
+		}
+
+		// Draw Obstacles
 		for (int i = 0; i < LEVEL3_NUM_OBSTACLES; i++) {
 			if (level3_obstacles[i].active && obstacleImgs[level3_obstacles[i].type] >= 0) {
 				iShowImage((int)level3_obstacles[i].x, (int)level3_obstacles[i].y,
@@ -650,6 +637,7 @@ inline void renderLevel3()
 			}
 		}
 
+		// Draw Keys
 		for (int i = 0; i < LEVEL3_NUM_KEYS; i++) {
 			if (!level3_keys[i].collected) {
 				float screenKeyX = (float)(level3_keys[i].trackPos - level3_distanceCovered + 100);
@@ -660,13 +648,15 @@ inline void renderLevel3()
 			}
 		}
 
+		// Draw 2X Orb
 		if (level3_power2x.active) level3_draw2XOrb(level3_power2x.x, level3_power2x.y);
 
+		// Draw Player
 		int playerImg = level3_isSliding ? slideImg : (level3_isJumping ? jumpFrames[level3_jumpFrameIndex] : (level3_isMoving ? runFrames[level3_animFrame] : idleImg));
 		iShowImage((int)level3_playerX, (int)level3_playerY, level3_playerWidth, level3_playerHeight, playerImg);
 	}
 
-	// 5. CAVE DOORS & 5 KEYS FLOATING DIRECTLY AT CAVE CENTERS
+	// 5. CAVE DOORS & PUZZLES
 	if (level3_doorsVisible) {
 		if (level3combat_active) {
 			renderLevel3Combat();
@@ -685,12 +675,10 @@ inline void renderLevel3()
 					int cx = level3_doors[i].centerX;
 					int cy = (int)((float)level3_doors[i].centerY + floatOffset);
 
-					// Center key placement
 					float keyDrawX = (float)(cx - 24);
 					float keyDrawY = (float)(cy - 12);
 
 					if (level3_doors[i].visited) {
-						// Completed: Green Glow Ring & Status
 						iSetColor(80, 220, 100);
 						iCircle(cx, cy, 32);
 						iCircle(cx, cy, 33);
@@ -701,7 +689,6 @@ inline void renderLevel3()
 						level3_drawBoldText(cx - 36, cy - 65, "CLEARED!", GLUT_BITMAP_HELVETICA_18);
 					}
 					else if (i == currentTargetCave) {
-						// Active Target: Bright Pulsing Glow Ring
 						float pulse = (sinf(level3_shineTimer * 0.2f) + 1.0f) * 4.0f;
 						iSetColor(255, 255, 255);
 						iCircle(cx, cy, (int)(34 + pulse));
@@ -716,7 +703,6 @@ inline void renderLevel3()
 						level3_drawBoldText(cx - 28, cy - 65, "ENTER", GLUT_BITMAP_TIMES_ROMAN_24);
 					}
 					else {
-						// Locked: Dimmed Key & Gray Circle
 						iSetColor(70, 70, 70);
 						iCircle(cx, cy, 30);
 						level3_drawKey(keyDrawX, keyDrawY, 48, 120, 120, 120);
@@ -762,7 +748,7 @@ inline void renderLevel3()
 		}
 	}
 
-	// 6. HUD (5 KEYS)
+	// 6. HUD
 	for (int i = 0; i < LEVEL3_NUM_KEYS; i++) {
 		int hx = 25 + i * 32, hy = 25;
 		if (level3_keyCollected[i]) iSetColor(level3_keyColor[i][0], level3_keyColor[i][1], level3_keyColor[i][2]);
@@ -835,6 +821,24 @@ inline void level3_fixedUpdate()
 
 	level3_isMoving = false;
 
+	// Surface Detection: Checks if player is on ANY of the 3 exclaves
+	float currentGroundY = level3_groundY;
+	int playerWorldX = level3_distanceCovered;
+	bool onExclave = false;
+
+	for (int e = 0; e < LEVEL3_NUM_EXCLAVES; e++) {
+		if (playerWorldX >= level3_exclaveStarts[e] &&
+			playerWorldX <= level3_exclaveStarts[e] + LEVEL3_EXCLAVE_WIDTH) {
+			onExclave = true;
+			break;
+		}
+	}
+
+	if (onExclave) {
+		currentGroundY = LEVEL3_EXCLAVE_SURFACE_Y;
+	}
+
+	// Slide Input
 	if (!level3_doorsVisible && !level3_isJumping && isSpecialKeyPressed(GLUT_KEY_DOWN)) {
 		level3_isSliding = true;
 		level3_slideTimer = LEVEL3_SLIDE_DURATION;
@@ -851,6 +855,7 @@ inline void level3_fixedUpdate()
 		}
 	}
 
+	// Jump Input
 	if (!level3_doorsVisible && !level3_isSliding && isSpecialKeyPressed(GLUT_KEY_UP)) {
 		if (!level3_isJumping) {
 			level3_isJumping = true;
@@ -861,7 +866,22 @@ inline void level3_fixedUpdate()
 
 	float extraMoveEnemies = 0.0f;
 
+	// Forward Movement & Wall-Collision Check for all 3 exclaves
 	if (!level3_doorsVisible && (isSpecialKeyPressed(GLUT_KEY_RIGHT) || level3_isSliding)) {
+		int nextWorldX = level3_distanceCovered + level3_playerSpeed;
+
+		for (int e = 0; e < LEVEL3_NUM_EXCLAVES; e++) {
+			if (nextWorldX >= level3_exclaveStarts[e] && level3_distanceCovered < level3_exclaveStarts[e]) {
+				if (level3_playerY < LEVEL3_EXCLAVE_SURFACE_Y - 10.0f) {
+					// Crashed into the cliff!
+					level3_gameOver = true;
+					level3_energy = 0;
+					level3_playLoseSound();
+					return;
+				}
+			}
+		}
+
 		level3_isMoving = true;
 		level3_facingRight = true;
 		level3_bgX -= level3_playerSpeed;
@@ -873,6 +893,7 @@ inline void level3_fixedUpdate()
 		if (level3_distanceCovered >= LEVEL3_TARGET_DISTANCE) {
 			level3_doorsVisible = true;
 			level3_playerX = 100.0f;
+			level3_playerY = level3_groundY;
 			level3_isSliding = false;
 			level3_playerWidth = LEVEL3_PLAYER_NORMAL_W;
 			level3_playerHeight = LEVEL3_PLAYER_NORMAL_H;
@@ -889,11 +910,33 @@ inline void level3_fixedUpdate()
 		}
 	}
 
+	// Physics: Jump & Gravity (Drops player down when cliff ends)
+	if (level3_isJumping || level3_playerY > currentGroundY) {
+		level3_playerY += level3_jumpVelocity;
+		level3_jumpVelocity -= LEVEL3_GRAVITY;
+
+		if (level3_jumpVelocity > 3.0f) level3_jumpFrameIndex = 0;
+		else if (level3_jumpVelocity >= -3.0f) level3_jumpFrameIndex = 1;
+		else level3_jumpFrameIndex = 2;
+
+		if (level3_playerY <= currentGroundY) {
+			level3_playerY = currentGroundY;
+			level3_isJumping = false;
+			level3_jumpVelocity = 0.0f;
+			level3_jumpFrameIndex = 0;
+		}
+	}
+	else if (level3_playerY < currentGroundY) {
+		level3_playerY = currentGroundY;
+	}
+
+	// Power-up Motion
 	if (level3_power2x.active) {
 		level3_power2x.x -= (level3_power2x.speed + extraMoveEnemies);
 		if (level3_power2x.x < -60) level3_power2x.active = false;
 	}
 
+	// Obstacles, Keys & Power-ups Updates
 	if (!level3_doorsVisible) {
 		for (int i = 0; i < LEVEL3_NUM_OBSTACLES; i++) {
 			if (!level3_obstacles[i].spawned && level3_distanceCovered >= level3_obstacleSpawnDistance[i]) {
@@ -912,6 +955,7 @@ inline void level3_fixedUpdate()
 			}
 		}
 
+		// Key Collision
 		for (int i = 0; i < LEVEL3_NUM_KEYS; i++) {
 			if (level3_keys[i].collected) continue;
 			float screenKeyX = (float)(level3_keys[i].trackPos - level3_distanceCovered + 100);
@@ -924,6 +968,7 @@ inline void level3_fixedUpdate()
 			}
 		}
 
+		// 2X Power-up Collision
 		if (level3_power2x.active) {
 			if (level3_rectOverlap(level3_power2x.x, level3_power2x.y, level3_power2x.size, level3_power2x.size,
 				level3_playerX, level3_playerY, level3_playerWidth, level3_playerHeight)) {
@@ -936,6 +981,7 @@ inline void level3_fixedUpdate()
 			}
 		}
 
+		// Obstacle Collision
 		for (int i = 0; i < LEVEL3_NUM_OBSTACLES; i++) {
 			if (!level3_obstacles[i].active || level3_obstacles[i].hit) continue;
 			if (level3_rectOverlap(level3_obstacles[i].x, level3_obstacles[i].y, level3_obstacles[i].width, level3_obstacles[i].height,
@@ -957,21 +1003,7 @@ inline void level3_fixedUpdate()
 		}
 	}
 
-	if (level3_isJumping) {
-		level3_playerY += level3_jumpVelocity;
-		level3_jumpVelocity -= LEVEL3_GRAVITY;
-		if (level3_jumpVelocity > 3.0f) level3_jumpFrameIndex = 0;
-		else if (level3_jumpVelocity >= -3.0f) level3_jumpFrameIndex = 1;
-		else level3_jumpFrameIndex = 2;
-
-		if (level3_playerY <= level3_groundY) {
-			level3_playerY = level3_groundY;
-			level3_isJumping = false;
-			level3_jumpVelocity = 0.0f;
-			level3_jumpFrameIndex = 0;
-		}
-	}
-
+	// Running Animation Delay
 	if (level3_isMoving && !level3_isSliding) {
 		level3_animTimer++;
 		if (level3_animTimer >= LEVEL3_ANIM_FRAME_DELAY) {
@@ -1049,7 +1081,6 @@ inline void handleLevel3Clicks(int mx, int my)
 		currentTargetCave++;
 	}
 
-	// Click detection: Centered on Cave Entrances
 	for (int i = 0; i < LEVEL3_NUM_DOORS; i++) {
 		int minX = level3_doors[i].centerX - level3_doors[i].width / 2;
 		int maxX = level3_doors[i].centerX + level3_doors[i].width / 2;
@@ -1057,7 +1088,6 @@ inline void handleLevel3Clicks(int mx, int my)
 		int maxY = level3_doors[i].centerY + level3_doors[i].height / 2;
 
 		if (mx >= minX && mx <= maxX && my >= minY && my <= maxY) {
-
 			if (level3_doors[i].visited) {
 				strcpy_s(level3_message, sizeof(level3_message), "Cave already cleared! Move to the next cave.");
 				level3_messageTimer = 70;
