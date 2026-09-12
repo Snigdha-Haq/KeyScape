@@ -425,7 +425,6 @@ inline void level3_drawSettingsUI()
 	if (level3_isPaused && !level3_gameOver && !level3_keyFound) {
 		iSetColor(0, 0, 0);
 		iText(SCREEN_WIDTH / 2 - 80, SCREEN_HEIGHT / 2 + 30, "GAME PAUSED", GLUT_BITMAP_TIMES_ROMAN_24);
-		iText(SCREEN_WIDTH / 2 - 120, SCREEN_HEIGHT / 2, "Click 'P' or press 'P' to Resume", GLUT_BITMAP_HELVETICA_18);
 	}
 }
 
