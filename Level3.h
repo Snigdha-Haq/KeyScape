@@ -841,19 +841,11 @@ inline void renderLevel3()
 			}
 		}
 		else {
-			iSetColor(10, 10, 20);
-			iFilledRectangle(SCREEN_WIDTH / 2 - 380, 190, 760, 240);
-			iSetColor(255, 215, 0);
-			iRectangle(SCREEN_WIDTH / 2 - 380, 190, 760, 240);
-
 			int h = level3_doors[level3_currentTaskDoor].handlerIndex;
 			if (h == 0) L3Door1_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
 			else if (h == 1) L3Door2_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
 			else if (h == 2) L3Door3_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
 			else if (h == 3) L3Door4_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
-
-			iSetColor(255, 255, 255);
-			iText(SCREEN_WIDTH / 2 - 180, LEVEL3_OPT_Y + LEVEL3_OPT_H + 30, "Choose correctly to unlock, wrong answer deducts energy!");
 		}
 	}
 
@@ -1001,7 +993,7 @@ inline void level3_fixedUpdate()
 	level3_isMoving = false;
 
 	// Slide Input
-	if (!level3_doorsVisible && !level3_isJumping && isSpecialKeyPressed(GLUT_KEY_DOWN)) {
+	if (!level3_doorsVisible && !level3_isJumping && (GetAsyncKeyState(VK_DOWN) & 0x8000)) {
 		level3_isSliding = true;
 		level3_slideTimer = LEVEL3_SLIDE_DURATION;
 		level3_playerWidth = LEVEL3_PLAYER_SLIDE_W;
@@ -1018,7 +1010,7 @@ inline void level3_fixedUpdate()
 	}
 
 	// Jump Input
-	if (!level3_doorsVisible && !level3_isSliding && isSpecialKeyPressed(GLUT_KEY_UP)) {
+	if (!level3_doorsVisible && !level3_isSliding && (GetAsyncKeyState(VK_UP) & 0x8000)) {
 		if (!level3_isJumping) {
 			level3_isJumping = true;
 			level3_jumpVelocity = LEVEL3_JUMP_STRENGTH;
@@ -1029,7 +1021,7 @@ inline void level3_fixedUpdate()
 	float extraMoveTreats = 0.0f;
 
 	// Forward Movement & Wall-Collision Check
-	if (!level3_doorsVisible && (isSpecialKeyPressed(GLUT_KEY_RIGHT) || level3_isSliding)) {
+	if (!level3_doorsVisible && ((GetAsyncKeyState(VK_RIGHT) & 0x8000) || level3_isSliding)) {
 		int nextWorldX = level3_distanceCovered + level3_playerSpeed;
 
 		for (int e = 0; e < LEVEL3_NUM_EXCLAVES; e++) {
@@ -1072,7 +1064,7 @@ inline void level3_fixedUpdate()
 			level3_playerHeight = LEVEL3_PLAYER_NORMAL_H;
 		}
 	}
-	else if (!level3_doorsVisible && !level3_isSliding && isSpecialKeyPressed(GLUT_KEY_LEFT)) {
+	else if (!level3_doorsVisible && !level3_isSliding && (GetAsyncKeyState(VK_LEFT) & 0x8000)) {
 		if (level3_distanceCovered > 0) {
 			level3_isMoving = true;
 			level3_facingRight = false;
