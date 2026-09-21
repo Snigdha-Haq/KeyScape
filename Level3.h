@@ -77,16 +77,16 @@ static bool level3_facingRight = true;
 
 static int level3_bgX = 0;
 static int level3_distanceCovered = 0;
-#define LEVEL3_TARGET_DISTANCE 57600
+#define LEVEL3_TARGET_DISTANCE 22500 // 1.5 min duration (approx 90 seconds)
 
 // EXCLAVE / ELEVATED PLATFORM CONFIGURATION (6 EXCLAVES)
 #define LEVEL3_NUM_EXCLAVES      6
-#define LEVEL3_EXCLAVE_WIDTH     2200
+#define LEVEL3_EXCLAVE_WIDTH     860
 #define LEVEL3_EXCLAVE_HEIGHT    185
 #define LEVEL3_EXCLAVE_DRAW_Y    110.0f
 #define LEVEL3_EXCLAVE_SURFACE_Y 260.0f
 
-static int level3_exclaveStarts[LEVEL3_NUM_EXCLAVES] = { 6000, 15000, 24000, 33000, 42000, 50000 };
+static int level3_exclaveStarts[LEVEL3_NUM_EXCLAVES] = { 2300, 5800, 9300, 12800, 16300, 19500 };
 
 // Animation
 static bool level3_isMoving = false;
@@ -208,7 +208,7 @@ struct Level3Key {
 };
 
 static Level3Key level3_keys[LEVEL3_NUM_KEYS];
-static int level3_keySpawnDistance[LEVEL3_NUM_KEYS] = { 7000, 16500, 27000, 37500, 48500 };
+static int level3_keySpawnDistance[LEVEL3_NUM_KEYS] = { 2700, 6400, 10500, 14600, 18900 };
 
 int level3_keyColor[LEVEL3_NUM_KEYS][3] = {
 	{ 255, 215, 0 },   // 0: Gold
@@ -236,10 +236,10 @@ struct Level3IceCream {
 
 static Level3IceCream level3_icecreams[LEVEL3_NUM_ICECREAMS];
 static int level3_icecreamSpawnDistance[LEVEL3_NUM_ICECREAMS] = {
-	2200, 4400, 6800, 9200, 11600, 14000,
-	16400, 18800, 21200, 23600, 26000, 28400,
-	30800, 33200, 35600, 38000, 40400, 42800,
-	45200, 47600, 50000, 52400, 54600, 56400
+	850, 1700, 2650, 3600, 4550, 5500,
+	6400, 7350, 8300, 9250, 10150, 11100,
+	12050, 13000, 13900, 14850, 15800, 16750,
+	17650, 18600, 19550, 20450, 21350, 22000
 };
 
 char level3_message[120] = "";
@@ -267,6 +267,8 @@ static bool level3_insideTask = false;
 static int level3_currentTaskDoor = -1;
 static float level3_shineTimer = 0.0f;
 static float level3_clamOpenAngle = 0.0f;
+
+inline void level3_drawBoldText(int x, int y, const char* str, void* font);
 
 // 5 SEPARATE DOOR OPERATOR HEADERS
 #include "L3door1.h"
@@ -486,7 +488,7 @@ inline void setupLevel3()
 	level3_message[0] = '\0';
 	level3_messageTimer = 0;
 
-	// Setup 5 Keys (Air keys are placed higher: 350.0f)
+	// Setup 5 Keys (Air keys placed at 350.0f)
 	bool keyAirList[LEVEL3_NUM_KEYS] = { false, false, false, true, false };
 	for (int i = 0; i < LEVEL3_NUM_KEYS; i++) {
 		level3_keys[i].id = i;
@@ -608,7 +610,6 @@ inline void renderLevel3()
 		icecreamImgs[2] = iLoadImage("Image/icecream3.png");
 		icecreamImgs[3] = iLoadImage("Image/icecream4.png");
 
-		// Load Power-Up PNG Images
 		imgPowerScore2x = iLoadImage("Image/SCORE-2x.png");
 		if (imgPowerScore2x < 0) imgPowerScore2x = iLoadImage("SCORE-2x.png");
 
@@ -767,6 +768,21 @@ inline void renderLevel3()
 
 	// 5. CAVE DOORS & PUZZLES
 	if (level3_doorsVisible) {
+#if defined(level3door5_active)
+		if (level3door5_active) {
+			renderL3Door5Path();
+			level3_drawSettingsUI();
+			return;
+		}
+#endif
+#if defined(level3door4_active)
+		if (level3door4_active) {
+			renderL3Door4Path();
+			level3_drawSettingsUI();
+			return;
+		}
+#endif
+
 		if (level3combat_active) {
 			renderLevel3Combat();
 		}
@@ -841,11 +857,18 @@ inline void renderLevel3()
 			}
 		}
 		else {
+			iSetColor(10, 10, 20);
+			iFilledRectangle(SCREEN_WIDTH / 2 - 380, 190, 760, 240);
+			iSetColor(255, 215, 0);
+			iRectangle(SCREEN_WIDTH / 2 - 380, 190, 760, 240);
+
 			int h = level3_doors[level3_currentTaskDoor].handlerIndex;
 			if (h == 0) L3Door1_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
 			else if (h == 1) L3Door2_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
 			else if (h == 2) L3Door3_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
 			else if (h == 3) L3Door4_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
+
+			// Instruction text line removed as requested
 		}
 	}
 
@@ -899,7 +922,13 @@ inline void renderLevel3()
 		level3_drawBoldText(SCREEN_WIDTH - 220, SCREEN_HEIGHT - 65, spdBuf, GLUT_BITMAP_HELVETICA_18);
 	}
 
-	if (level3_doorsVisible && !level3_insideTask && level3_finishStage == 0 && !level3combat_active) {
+#if defined(level3door5_active)
+	bool door5Running = level3door5_active;
+#else
+	bool door5Running = false;
+#endif
+
+	if (level3_doorsVisible && !level3_insideTask && level3_finishStage == 0 && !level3combat_active && !door5Running) {
 		iSetColor(255, 255, 255);
 		level3_drawBoldText(SCREEN_WIDTH / 2 - 230, SCREEN_HEIGHT - 45, "Complete caves 1 to 5 in order! Final Key in Cave 5.", GLUT_BITMAP_HELVETICA_18);
 	}
@@ -916,6 +945,20 @@ inline void renderLevel3()
 inline void level3_fixedUpdate()
 {
 	if (level3_isPaused || level3_gameOver || level3_keyFound) return;
+
+#if defined(level3door5_active)
+	if (level3door5_active) {
+		updateL3Door5PathIfActive();
+		return;
+	}
+#endif
+
+#if defined(level3door4_active)
+	if (level3door4_active) {
+		updateL3Door4PathIfActive();
+		return;
+	}
+#endif
 
 	if (level3combat_active) {
 		updateLevel3CombatIfActive();
@@ -950,10 +993,10 @@ inline void level3_fixedUpdate()
 		currentGroundY = LEVEL3_EXCLAVE_SURFACE_Y;
 	}
 
-	// Power-up Spawn Handler (Air spawn height increased to +160.0f so jump is mandatory)
+	// Power-up Spawn Handler (Adjusted interval to 100 for 1.5 min duration)
 	if (!level3_doorsVisible) {
 		level3_powerSpawnCounter++;
-		if (level3_powerSpawnCounter >= 250) {
+		if (level3_powerSpawnCounter >= 100) {
 			int pick = rand() % 100;
 			int futureWorldX = level3_distanceCovered + SCREEN_WIDTH + 50;
 			float spawnGround = level3_isWorldXOnExclave(futureWorldX) ? LEVEL3_EXCLAVE_SURFACE_Y : level3_groundY;
@@ -993,7 +1036,7 @@ inline void level3_fixedUpdate()
 	level3_isMoving = false;
 
 	// Slide Input
-	if (!level3_doorsVisible && !level3_isJumping && (GetAsyncKeyState(VK_DOWN) & 0x8000)) {
+	if (!level3_doorsVisible && !level3_isJumping && isSpecialKeyPressed(GLUT_KEY_DOWN)) {
 		level3_isSliding = true;
 		level3_slideTimer = LEVEL3_SLIDE_DURATION;
 		level3_playerWidth = LEVEL3_PLAYER_SLIDE_W;
@@ -1010,7 +1053,7 @@ inline void level3_fixedUpdate()
 	}
 
 	// Jump Input
-	if (!level3_doorsVisible && !level3_isSliding && (GetAsyncKeyState(VK_UP) & 0x8000)) {
+	if (!level3_doorsVisible && !level3_isSliding && isSpecialKeyPressed(GLUT_KEY_UP)) {
 		if (!level3_isJumping) {
 			level3_isJumping = true;
 			level3_jumpVelocity = LEVEL3_JUMP_STRENGTH;
@@ -1021,7 +1064,7 @@ inline void level3_fixedUpdate()
 	float extraMoveTreats = 0.0f;
 
 	// Forward Movement & Wall-Collision Check
-	if (!level3_doorsVisible && ((GetAsyncKeyState(VK_RIGHT) & 0x8000) || level3_isSliding)) {
+	if (!level3_doorsVisible && (isSpecialKeyPressed(GLUT_KEY_RIGHT) || level3_isSliding)) {
 		int nextWorldX = level3_distanceCovered + level3_playerSpeed;
 
 		for (int e = 0; e < LEVEL3_NUM_EXCLAVES; e++) {
@@ -1064,7 +1107,7 @@ inline void level3_fixedUpdate()
 			level3_playerHeight = LEVEL3_PLAYER_NORMAL_H;
 		}
 	}
-	else if (!level3_doorsVisible && !level3_isSliding && (GetAsyncKeyState(VK_LEFT) & 0x8000)) {
+	else if (!level3_doorsVisible && !level3_isSliding && isSpecialKeyPressed(GLUT_KEY_LEFT)) {
 		if (level3_distanceCovered > 0) {
 			level3_isMoving = true;
 			level3_facingRight = false;
@@ -1163,7 +1206,7 @@ inline void level3_fixedUpdate()
 			}
 		}
 
-		// Key Updates (Air keys are high up at 350.0f)
+		// Key Updates
 		for (int i = 0; i < LEVEL3_NUM_KEYS; i++) {
 			if (level3_keys[i].collected) continue;
 
@@ -1303,7 +1346,20 @@ inline void handleLevel3Clicks(int mx, int my)
 		}
 	}
 
-	if (level3_gameOver || level3_isPaused || !level3_doorsVisible || level3combat_active || level3_keyFound) return;
+#if defined(level3door5_active)
+	if (level3door5_active && !level3_gameOver && !level3_isPaused && !level3_keyFound) {
+		level3door5_handleClick(mx, my);
+		return;
+	}
+#endif
+
+#if defined(level3door5_active)
+	bool isD5 = level3door5_active;
+#else
+	bool isD5 = false;
+#endif
+
+	if (level3_gameOver || level3_isPaused || !level3_doorsVisible || level3combat_active || isD5 || level3_keyFound) return;
 
 	if (level3_finishStage == 1) {
 		if (mx >= SCREEN_WIDTH / 2 - 120 && mx <= SCREEN_WIDTH / 2 + 120 && my >= 200 && my <= 420) {
@@ -1371,7 +1427,21 @@ inline void handleLevel3Clicks(int mx, int my)
 
 			if (level3_doors[i].handlerIndex == 4) {
 				level3_doors[i].visited = true;
+#if defined(startL3Door5Path) || defined(level3door5_active)
+				startL3Door5Path();
+#else
 				startLevel3Combat();
+#endif
+			}
+			else if (level3_doors[i].handlerIndex == 3) {
+#if defined(startL3Door4Path) || defined(level3door4_active)
+				level3_doors[i].visited = true;
+				startL3Door4Path();
+#else
+				level3_currentTaskDoor = i;
+				level3_insideTask = true;
+				L3Door4_GenerateTask();
+#endif
 			}
 			else {
 				level3_currentTaskDoor = i;
@@ -1380,7 +1450,6 @@ inline void handleLevel3Clicks(int mx, int my)
 				if (h == 0) L3Door1_GenerateTask();
 				else if (h == 1) L3Door2_GenerateTask();
 				else if (h == 2) L3Door3_GenerateTask();
-				else if (h == 3) L3Door4_GenerateTask();
 			}
 			return;
 		}
