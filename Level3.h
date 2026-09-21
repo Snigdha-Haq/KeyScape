@@ -18,6 +18,12 @@
 extern int gameState;
 extern bool isSoundMuted;
 
+// Forward Declarations & Combat / Door Fallback Stubs
+static bool level3combat_active = false;
+inline void renderLevel3Combat() {}
+inline void updateLevel3CombatIfActive() {}
+inline void startLevel3Combat() { level3combat_active = true; }
+
 // SOUND EFFECT HELPERS
 inline void level3_playPlusPointSound() {
 	if (isSoundMuted) return;
@@ -269,6 +275,11 @@ static float level3_shineTimer = 0.0f;
 static float level3_clamOpenAngle = 0.0f;
 
 inline void level3_drawBoldText(int x, int y, const char* str, void* font);
+
+// Fallback stubs for Door 4 Task if missing in L3door4.h
+inline void L3Door4_RenderTask(int sw, int ow, int oh, int og, int oy) {}
+inline bool L3Door4_HandleClick(int mx, int my, int sw, int ow, int oh, int og, int oy, bool* vis, bool* ins) { if (vis) *vis = true; if (ins) *ins = false; return true; }
+inline void L3Door4_GenerateTask() {}
 
 // 5 SEPARATE DOOR OPERATOR HEADERS
 #include "L3door1.h"
@@ -867,8 +878,6 @@ inline void renderLevel3()
 			else if (h == 1) L3Door2_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
 			else if (h == 2) L3Door3_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
 			else if (h == 3) L3Door4_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
-
-			// Instruction text line removed as requested
 		}
 	}
 
@@ -1413,7 +1422,7 @@ inline void handleLevel3Clicks(int mx, int my)
 				sprintf_s(warnBuf, sizeof(warnBuf), "Locked! You must complete Cave %d first.", currentTargetCave + 1);
 				strcpy_s(level3_message, sizeof(level3_message), warnBuf);
 				level3_messageTimer = 80;
-				playNegPointSound();
+				level3_playNegPointSound();
 				return;
 			}
 
