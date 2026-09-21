@@ -59,7 +59,7 @@ static bool level3door5_active = false;
 #define L3D5_NUM_DIALS 3
 static const int level3door5_targetList[L3D5_NUM_TARGETS] = { 21, 25, 16 };
 
-#define L3D5_BOARD_W 640
+#define L3D5_BOARD_W 600
 #define L3D5_BOARD_H 265
 #define L3D5_BOARD_X (SCREEN_WIDTH / 2 - L3D5_BOARD_W / 2)
 #define L3D5_BOARD_Y 110
@@ -71,7 +71,7 @@ static const int level3door5_targetList[L3D5_NUM_TARGETS] = { 21, 25, 16 };
 #define L3D5_DIAL_CY 209
 #define L3D5_SOLVED_DELAY 45
 
-#define L3D5_CRACK_DURATION 500.0f
+#define L3D5_CRACK_DURATION 300.0f
 #define L3D5_PLAYER_SCREEN_X 220
 
 #define L3D5_JUMP_DURATION 28

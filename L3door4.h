@@ -43,7 +43,7 @@ static bool level3door4_active = false;
 
 // ---------------- tuning knobs ----------------
 #define L3D4_SURVIVE_SECONDS   60.0f
-#define L3D4_WAVE_SECONDS      40.0f
+#define L3D4_WAVE_SECONDS      20.0f
 #define L3D4_SURVIVE_SCORE     300
 
 #define L3D4_ROCK_DAMAGE       10
@@ -55,9 +55,9 @@ static bool level3door4_active = false;
 #define L3D4_HIT_H             110
 
 #define L3D4_MAX_HAZARDS       24
-#define L3D4_ROCK_W            70
-#define L3D4_ROCK_H            70
-#define L3D4_SPIKE_W           30
+#define L3D4_ROCK_W            90
+#define L3D4_ROCK_H            90
+#define L3D4_SPIKE_W           50
 #define L3D4_SPIKE_H           75
 #define L3D4_HAZARD_INSET      6
 #define L3D4_ROCK_BASE_SPEED   5.0f

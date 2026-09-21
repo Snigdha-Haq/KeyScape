@@ -771,17 +771,11 @@ inline void renderLevel3()
 	if (level3_doorsVisible) {
 		if (level3door5_active) {
 			renderL3Door5Path();
-			level3_drawSettingsUI();
-			return;
 		}
-
-		if (level3door4_active) {
+		else if (level3door4_active) {
 			renderL3Door4Path();
-			level3_drawSettingsUI();
-			return;
 		}
-
-		if (!level3_insideTask) {
+		else if (!level3_insideTask) {
 			if (level3_finishStage == 0) {
 				float floatOffset = sinf(level3_shineTimer * 0.1f) * 6.0f;
 
