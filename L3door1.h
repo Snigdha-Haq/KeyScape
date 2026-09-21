@@ -418,9 +418,9 @@ inline void L3Door1_RenderTask(int screenW, int optW, int optH, int optGap, int 
 
 					if (bType >= 0 && bType <= 2) {
 						if (l3d1_immunityTimer <= 0) {
-							if (bType == 0) level3_energy -= 15;
-							else if (bType == 1) level3_energy -= 25;
-							else if (bType == 2) level3_energy -= 40;
+							if (bType == 0) level3_energy -= 10;
+							else if (bType == 1) level3_energy -= 15;
+							else if (bType == 2) level3_energy -= 20;
 
 							level3_playNegPointSound();
 
