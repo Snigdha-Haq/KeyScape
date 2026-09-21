@@ -1,23 +1,40 @@
 #ifndef L3DOOR4_H_INCLUDED
 #define L3DOOR4_H_INCLUDED
 
-// =================================================================
-//  DOOR 4 - "CAVE STORM"
-//  The player can only move LEFT / RIGHT. The 60-second timer starts
-//  the moment the player first moves. Falling rocks (slower) and
-//  spikes (much faster) come down from the top; every hit removes
-//  energy from the MAIN game energy (level3_energy), which Level3.h
-//  already draws. Energy 0 -> game over. Timer reaches 0 -> the door
-//  ends and the game returns to the cave doors (no chest here).
-//
-//  Hooks (same names as door 5):
-//     level3door4_active / startL3Door4Path()
-//     renderL3Door4Path() / updateL3Door4PathIfActive()
-// =================================================================
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
+#include <cstdio>
+#include <cstring>
+#include <windows.h>
+
+#ifndef SCREEN_WIDTH
+#define SCREEN_WIDTH 1000
+#define SCREEN_HEIGHT 600
+#endif
+
+#ifndef LEVEL3_PLAYER_NORMAL_W
+#define LEVEL3_PLAYER_NORMAL_W 90
+#define LEVEL3_PLAYER_NORMAL_H 130
+#endif
+
+#ifndef LEVEL3_ANIM_FRAME_DELAY
+#define LEVEL3_ANIM_FRAME_DELAY 6
+#endif
+
+extern int level3_energy;
+extern bool level3_gameOver;
+extern char level3_message[120];
+extern int level3_messageTimer;
+
+void level3_updateScore(int addPoints);
+void level3_playPlusPointSound();
+void level3_playNegPointSound();
+void level3_drawBoldText(int x, int y, const char* str, void* font);
 
 static bool level3door4_active = false;
 
-// ---------------- image files (change the names to match yours) ----------------
+// ---------------- image files ----------------
 #define L3D4_BG_FILE      "Image/bgInsideCave.png"
 #define L3D4_ROCK1_FILE   "Image/door4_rock1.png"
 #define L3D4_ROCK2_FILE   "Image/door4_rock2.png"
@@ -26,43 +43,43 @@ static bool level3door4_active = false;
 
 // ---------------- tuning knobs ----------------
 #define L3D4_SURVIVE_SECONDS   60.0f
-#define L3D4_WAVE_SECONDS      40.0f   // difficulty goes up every 20 s
-#define L3D4_SURVIVE_SCORE     300     // bonus for surviving (0 = none)
+#define L3D4_WAVE_SECONDS      40.0f
+#define L3D4_SURVIVE_SCORE     300
 
 #define L3D4_ROCK_DAMAGE       10
 #define L3D4_SPIKE_DAMAGE      5
 
-#define L3D4_GROUND_Y          150.0f  // where the character's feet are
+#define L3D4_GROUND_Y          150.0f
 #define L3D4_PLAYER_SPEED      8.0f
-#define L3D4_HIT_HALF_W        25      // player hitbox (narrower than the sprite)
+#define L3D4_HIT_HALF_W        25
 #define L3D4_HIT_H             110
 
 #define L3D4_MAX_HAZARDS       24
-#define L3D4_ROCK_W            70      // drawn size of a falling stone
+#define L3D4_ROCK_W            70
 #define L3D4_ROCK_H            70
-#define L3D4_SPIKE_W           30      // drawn size of a falling spike
+#define L3D4_SPIKE_W           30
 #define L3D4_SPIKE_H           75
-#define L3D4_HAZARD_INSET      6       // hitbox is this much smaller than the image on every side
+#define L3D4_HAZARD_INSET      6
 #define L3D4_ROCK_BASE_SPEED   5.0f
 #define L3D4_SPIKE_BASE_SPEED  10.0f
 
-#define L3D4_SPAWN_BASE        55      // frames between spawns in the first wave
+#define L3D4_SPAWN_BASE        55
 #define L3D4_SPAWN_MIN         20
 
 // ---------------- state ----------------
 struct Level3Door4Hazard {
 	bool  active;
 	bool  isSpike;
-	int   variant;  // 0 or 1 = which of the two images
-	float x;        // horizontal centre
-	float y;        // bottom edge
+	int   variant;
+	float x;
+	float y;
 	float speed;
 };
 
 static Level3Door4Hazard level3door4_hazards[L3D4_MAX_HAZARDS];
 
 static float   level3door4_playerX = 500.0f;
-static bool    level3door4_started = false;   // becomes true on the first LEFT/RIGHT press
+static bool    level3door4_started = false;
 static float   level3door4_timeLeft = L3D4_SURVIVE_SECONDS;
 static clock_t level3door4_lastClock = 0;
 static int     level3door4_spawnTimer = 0;
@@ -76,7 +93,7 @@ inline int level3door4_currentWave()
 	int wave = (int)((L3D4_SURVIVE_SECONDS - level3door4_timeLeft) / L3D4_WAVE_SECONDS);
 	if (wave < 0) wave = 0;
 	if (wave > 5) wave = 5;
-	return wave; // 0..5
+	return wave;
 }
 
 inline int level3door4_hazardW(const Level3Door4Hazard &h) { return h.isSpike ? L3D4_SPIKE_W : L3D4_ROCK_W; }
@@ -108,11 +125,10 @@ inline void level3door4_spawnHazard()
 	Level3Door4Hazard &h = level3door4_hazards[slot];
 
 	h.active = true;
-	h.isSpike = (rand() % 100) < (25 + wave * 6); // spikes get more common each wave
+	h.isSpike = (rand() % 100) < (25 + wave * 6);
 	h.variant = rand() % 2;
 	int halfW = level3door4_hazardW(h) / 2;
 
-	// 40% of hazards are aimed near the player so nobody can hide in a corner
 	float x;
 	if (rand() % 100 < 40) x = level3door4_playerX + (float)(rand() % 201 - 100);
 	else x = (float)(halfW + 10 + rand() % (SCREEN_WIDTH - 2 * halfW - 20));
@@ -120,7 +136,7 @@ inline void level3door4_spawnHazard()
 	if (x > SCREEN_WIDTH - halfW - 5) x = (float)(SCREEN_WIDTH - halfW - 5);
 	h.x = x;
 
-	h.y = (float)SCREEN_HEIGHT; // starts just above the top edge
+	h.y = (float)SCREEN_HEIGHT;
 	float base = h.isSpike ? L3D4_SPIKE_BASE_SPEED : L3D4_ROCK_BASE_SPEED;
 	h.speed = base + wave * 0.6f + (rand() % 20) / 10.0f;
 }
@@ -155,7 +171,7 @@ inline void level3door4_updateHazards()
 			continue;
 		}
 
-		if (h.y <= L3D4_GROUND_Y) h.active = false; // hit the floor
+		if (h.y <= L3D4_GROUND_Y) h.active = false;
 	}
 }
 
@@ -174,7 +190,7 @@ inline void renderL3Door4Path()
 		spikeImgs[0] = iLoadImage(L3D4_SPIKE1_FILE);
 		spikeImgs[1] = iLoadImage(L3D4_SPIKE2_FILE);
 		idleImg = iLoadImage("Image/idle_1.png");
-		for (int i = 0; i < 4; i++) {
+		for (int i = 0; i < 8; i++) {
 			char path[64];
 			sprintf_s(path, sizeof(path), "Image/run_%d.png", i + 1);
 			runFrames[i] = iLoadImage(path);
@@ -197,7 +213,6 @@ inline void renderL3Door4Path()
 			LEVEL3_PLAYER_NORMAL_W, LEVEL3_PLAYER_NORMAL_H, playerImg);
 	}
 
-	// Countdown (the energy bar, score and messages are drawn by Level3.h)
 	int secs = (int)ceilf(level3door4_timeLeft);
 	if (secs < 0) secs = 0;
 	char buf[32];
@@ -216,9 +231,8 @@ inline void updateL3Door4PathIfActive()
 
 	if (level3_messageTimer > 0) level3_messageTimer--;
 
-	// Left / right movement only
-	bool goLeft = isSpecialKeyPressed(GLUT_KEY_LEFT);
-	bool goRight = isSpecialKeyPressed(GLUT_KEY_RIGHT);
+	bool goLeft = (GetAsyncKeyState(VK_LEFT) & 0x8000) != 0;
+	bool goRight = (GetAsyncKeyState(VK_RIGHT) & 0x8000) != 0;
 	if (goLeft) level3door4_playerX -= L3D4_PLAYER_SPEED;
 	if (goRight) level3door4_playerX += L3D4_PLAYER_SPEED;
 	float minX = LEVEL3_PLAYER_NORMAL_W / 2.0f;
@@ -239,7 +253,6 @@ inline void updateL3Door4PathIfActive()
 		level3door4_animTimer = 0;
 	}
 
-	// Nothing falls and the clock stays at 1:00 until the character first moves
 	if (!level3door4_started) {
 		if (!level3door4_isMoving) return;
 		level3door4_started = true;
@@ -247,7 +260,6 @@ inline void updateL3Door4PathIfActive()
 		level3door4_spawnTimer = 30;
 	}
 
-	// Real-time countdown (clamped so pausing the game can't skip seconds)
 	clock_t now = clock();
 	float dt = (float)(now - level3door4_lastClock) / (float)CLOCKS_PER_SEC;
 	level3door4_lastClock = now;
@@ -255,7 +267,6 @@ inline void updateL3Door4PathIfActive()
 	if (dt > 0.1f) dt = 0.1f;
 	level3door4_timeLeft -= dt;
 
-	// Spawn hazards - faster and in bigger groups as time passes
 	level3door4_spawnTimer--;
 	if (level3door4_spawnTimer <= 0) {
 		int wave = level3door4_currentWave();
@@ -276,7 +287,6 @@ inline void updateL3Door4PathIfActive()
 		return;
 	}
 
-	// Survived the full minute -> back to the doors
 	if (level3door4_timeLeft <= 0.0f) {
 		level3_updateScore(L3D4_SURVIVE_SCORE);
 		level3_playPlusPointSound();

@@ -18,12 +18,6 @@
 extern int gameState;
 extern bool isSoundMuted;
 
-// Forward Declarations & Combat / Door Fallback Stubs
-static bool level3combat_active = false;
-inline void renderLevel3Combat() {}
-inline void updateLevel3CombatIfActive() {}
-inline void startLevel3Combat() { level3combat_active = true; }
-
 // SOUND EFFECT HELPERS
 inline void level3_playPlusPointSound() {
 	if (isSoundMuted) return;
@@ -276,11 +270,6 @@ static float level3_clamOpenAngle = 0.0f;
 
 inline void level3_drawBoldText(int x, int y, const char* str, void* font);
 
-// Fallback stubs for Door 4 Task if missing in L3door4.h
-inline void L3Door4_RenderTask(int sw, int ow, int oh, int og, int oy) {}
-inline bool L3Door4_HandleClick(int mx, int my, int sw, int ow, int oh, int og, int oy, bool* vis, bool* ins) { if (vis) *vis = true; if (ins) *ins = false; return true; }
-inline void L3Door4_GenerateTask() {}
-
 // 5 SEPARATE DOOR OPERATOR HEADERS
 #include "L3door1.h"
 #include "L3door2.h"
@@ -499,7 +488,7 @@ inline void setupLevel3()
 	level3_message[0] = '\0';
 	level3_messageTimer = 0;
 
-	// Setup 5 Keys (Air keys placed at 350.0f)
+	// Setup 5 Keys
 	bool keyAirList[LEVEL3_NUM_KEYS] = { false, false, false, true, false };
 	for (int i = 0; i < LEVEL3_NUM_KEYS; i++) {
 		level3_keys[i].id = i;
@@ -573,7 +562,8 @@ inline void setupLevel3()
 	level3_finishStage = 0;
 	level3_shineTimer = 0.0f;
 	level3_clamOpenAngle = 0.0f;
-	level3combat_active = false;
+	level3door4_active = false;
+	level3door5_active = false;
 	level3_insideTask = false;
 	level3_currentTaskDoor = -1;
 }
@@ -754,7 +744,7 @@ inline void renderLevel3()
 			}
 		}
 
-		// Draw Power-ups using Images (150x30)
+		// Draw Power-ups
 		if (level3_power2x.active) {
 			if (imgPowerScore2x >= 0) iShowImage((int)level3_power2x.x, (int)level3_power2x.y, LEVEL3_POWERUP_W, LEVEL3_POWERUP_H, imgPowerScore2x);
 			else { iSetColor(50, 140, 245); iFilledRectangle((int)level3_power2x.x, (int)level3_power2x.y, LEVEL3_POWERUP_W, LEVEL3_POWERUP_H); }
@@ -779,25 +769,19 @@ inline void renderLevel3()
 
 	// 5. CAVE DOORS & PUZZLES
 	if (level3_doorsVisible) {
-#if defined(level3door5_active)
 		if (level3door5_active) {
 			renderL3Door5Path();
 			level3_drawSettingsUI();
 			return;
 		}
-#endif
-#if defined(level3door4_active)
+
 		if (level3door4_active) {
 			renderL3Door4Path();
 			level3_drawSettingsUI();
 			return;
 		}
-#endif
 
-		if (level3combat_active) {
-			renderLevel3Combat();
-		}
-		else if (!level3_insideTask) {
+		if (!level3_insideTask) {
 			if (level3_finishStage == 0) {
 				float floatOffset = sinf(level3_shineTimer * 0.1f) * 6.0f;
 
@@ -868,16 +852,10 @@ inline void renderLevel3()
 			}
 		}
 		else {
-			iSetColor(10, 10, 20);
-			iFilledRectangle(SCREEN_WIDTH / 2 - 380, 190, 760, 240);
-			iSetColor(255, 215, 0);
-			iRectangle(SCREEN_WIDTH / 2 - 380, 190, 760, 240);
-
 			int h = level3_doors[level3_currentTaskDoor].handlerIndex;
 			if (h == 0) L3Door1_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
 			else if (h == 1) L3Door2_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
-			else if (h == 2) L3Door3_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
-			else if (h == 3) L3Door4_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y);
+			else if (h == 2) L3Door3_RenderTask(SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y, &level3_doors[level3_currentTaskDoor].visited, &level3_insideTask);
 		}
 	}
 
@@ -931,13 +909,9 @@ inline void renderLevel3()
 		level3_drawBoldText(SCREEN_WIDTH - 220, SCREEN_HEIGHT - 65, spdBuf, GLUT_BITMAP_HELVETICA_18);
 	}
 
-#if defined(level3door5_active)
 	bool door5Running = level3door5_active;
-#else
-	bool door5Running = false;
-#endif
 
-	if (level3_doorsVisible && !level3_insideTask && level3_finishStage == 0 && !level3combat_active && !door5Running) {
+	if (level3_doorsVisible && !level3_insideTask && level3_finishStage == 0 && !level3door4_active && !door5Running) {
 		iSetColor(255, 255, 255);
 		level3_drawBoldText(SCREEN_WIDTH / 2 - 230, SCREEN_HEIGHT - 45, "Complete caves 1 to 5 in order! Final Key in Cave 5.", GLUT_BITMAP_HELVETICA_18);
 	}
@@ -955,22 +929,13 @@ inline void level3_fixedUpdate()
 {
 	if (level3_isPaused || level3_gameOver || level3_keyFound) return;
 
-#if defined(level3door5_active)
 	if (level3door5_active) {
 		updateL3Door5PathIfActive();
 		return;
 	}
-#endif
 
-#if defined(level3door4_active)
 	if (level3door4_active) {
 		updateL3Door4PathIfActive();
-		return;
-	}
-#endif
-
-	if (level3combat_active) {
-		updateLevel3CombatIfActive();
 		return;
 	}
 
@@ -993,7 +958,7 @@ inline void level3_fixedUpdate()
 		}
 	}
 
-	// Surface Detection for Player (Checks all 6 exclaves)
+	// Surface Detection for Player
 	float currentGroundY = level3_groundY;
 	int playerWorldX = level3_distanceCovered;
 	bool onExclave = level3_isWorldXOnExclave(playerWorldX);
@@ -1002,7 +967,7 @@ inline void level3_fixedUpdate()
 		currentGroundY = LEVEL3_EXCLAVE_SURFACE_Y;
 	}
 
-	// Power-up Spawn Handler (Adjusted interval to 100 for 1.5 min duration)
+	// Power-up Spawn Handler
 	if (!level3_doorsVisible) {
 		level3_powerSpawnCounter++;
 		if (level3_powerSpawnCounter >= 100) {
@@ -1011,28 +976,24 @@ inline void level3_fixedUpdate()
 			float spawnGround = level3_isWorldXOnExclave(futureWorldX) ? LEVEL3_EXCLAVE_SURFACE_Y : level3_groundY;
 			float targetY = (rand() % 2 == 0) ? (spawnGround + 160.0f) : (spawnGround + 20.0f);
 
-			// Score:2x (37% chance)
 			if (pick < 37 && !level3_power2x.active) {
 				level3_power2x.active = true;
 				level3_power2x.x = (float)SCREEN_WIDTH + 50.0f;
 				level3_power2x.y = targetY;
 				level3_powerSpawnCounter = 0;
 			}
-			// Score:0.5x (38% chance)
 			else if (pick >= 37 && pick < 75 && !level3_powerHalf.active) {
 				level3_powerHalf.active = true;
 				level3_powerHalf.x = (float)SCREEN_WIDTH + 50.0f;
 				level3_powerHalf.y = targetY;
 				level3_powerSpawnCounter = 0;
 			}
-			// Speed:2x (12% chance)
 			else if (pick >= 75 && pick < 87 && !level3_powerSpeed2x.active) {
 				level3_powerSpeed2x.active = true;
 				level3_powerSpeed2x.x = (float)SCREEN_WIDTH + 50.0f;
 				level3_powerSpeed2x.y = targetY;
 				level3_powerSpawnCounter = 0;
 			}
-			// Speed:0.5x (13% chance)
 			else if (pick >= 87 && !level3_powerSpeedHalf.active) {
 				level3_powerSpeedHalf.active = true;
 				level3_powerSpeedHalf.x = (float)SCREEN_WIDTH + 50.0f;
@@ -1072,7 +1033,7 @@ inline void level3_fixedUpdate()
 
 	float extraMoveTreats = 0.0f;
 
-	// Forward Movement & Wall-Collision Check
+	// Forward Movement
 	if (!level3_doorsVisible && (isSpecialKeyPressed(GLUT_KEY_RIGHT) || level3_isSliding)) {
 		int nextWorldX = level3_distanceCovered + level3_playerSpeed;
 
@@ -1127,7 +1088,7 @@ inline void level3_fixedUpdate()
 		}
 	}
 
-	// Physics: Jump & Gravity
+	// Physics
 	if (level3_isJumping || level3_playerY > currentGroundY) {
 		level3_playerY += level3_jumpVelocity;
 		level3_jumpVelocity -= LEVEL3_GRAVITY;
@@ -1147,28 +1108,25 @@ inline void level3_fixedUpdate()
 		level3_playerY = currentGroundY;
 	}
 
-	// Power-ups Movement
+	// Power-up movement
 	if (level3_power2x.active) {
 		level3_power2x.x -= (level3_power2x.speed + extraMoveTreats);
 		if (level3_power2x.x < -160) level3_power2x.active = false;
 	}
-
 	if (level3_powerHalf.active) {
 		level3_powerHalf.x -= (level3_powerHalf.speed + extraMoveTreats);
 		if (level3_powerHalf.x < -160) level3_powerHalf.active = false;
 	}
-
 	if (level3_powerSpeed2x.active) {
 		level3_powerSpeed2x.x -= (level3_powerSpeed2x.speed + extraMoveTreats);
 		if (level3_powerSpeed2x.x < -160) level3_powerSpeed2x.active = false;
 	}
-
 	if (level3_powerSpeedHalf.active) {
 		level3_powerSpeedHalf.x -= (level3_powerSpeedHalf.speed + extraMoveTreats);
 		if (level3_powerSpeedHalf.x < -160) level3_powerSpeedHalf.active = false;
 	}
 
-	// Ice Creams, Keys & Power-ups Updates
+	// Treats and items updates
 	if (!level3_doorsVisible) {
 		for (int i = 0; i < LEVEL3_NUM_ICECREAMS; i++) {
 			if (!level3_icecreams[i].spawned && level3_distanceCovered >= level3_icecreams[i].trackPos) {
@@ -1215,7 +1173,7 @@ inline void level3_fixedUpdate()
 			}
 		}
 
-		// Key Updates
+		// Keys collision
 		for (int i = 0; i < LEVEL3_NUM_KEYS; i++) {
 			if (level3_keys[i].collected) continue;
 
@@ -1236,84 +1194,60 @@ inline void level3_fixedUpdate()
 			}
 		}
 
-		// Score:2x Collision
-		if (level3_power2x.active) {
-			if (level3_rectOverlap(level3_power2x.x, level3_power2x.y, level3_power2x.width, level3_power2x.height,
-				level3_playerX, level3_playerY, level3_playerWidth, level3_playerHeight)) {
-				level3_power2x.active = false;
-				level3_scoreMultiplier = 2.0f;
-				level3_multiplierTimer = 500;
-				strcpy_s(level3_message, sizeof(level3_message), "SCORE:2X BOOST ACTIVATED FOR 10 SECONDS!");
-				level3_messageTimer = 70;
-				level3_playPlusPointSound();
-			}
+		// Collisions with Power-ups
+		if (level3_power2x.active && level3_rectOverlap(level3_power2x.x, level3_power2x.y, level3_power2x.width, level3_power2x.height, level3_playerX, level3_playerY, level3_playerWidth, level3_playerHeight)) {
+			level3_power2x.active = false;
+			level3_scoreMultiplier = 2.0f;
+			level3_multiplierTimer = 500;
+			strcpy_s(level3_message, sizeof(level3_message), "SCORE:2X BOOST ACTIVATED FOR 10 SECONDS!");
+			level3_messageTimer = 70;
+			level3_playPlusPointSound();
+		}
+		if (level3_powerHalf.active && level3_rectOverlap(level3_powerHalf.x, level3_powerHalf.y, level3_powerHalf.width, level3_powerHalf.height, level3_playerX, level3_playerY, level3_playerWidth, level3_playerHeight)) {
+			level3_powerHalf.active = false;
+			level3_scoreMultiplier = 0.5f;
+			level3_multiplierTimer = 500;
+			strcpy_s(level3_message, sizeof(level3_message), "SCORE:0.5X ACTIVATED! HALF SCORE FOR 10 SECONDS!");
+			level3_messageTimer = 70;
+			level3_playNegPointSound();
+		}
+		if (level3_powerSpeed2x.active && level3_rectOverlap(level3_powerSpeed2x.x, level3_powerSpeed2x.y, level3_powerSpeed2x.width, level3_powerSpeed2x.height, level3_playerX, level3_playerY, level3_playerWidth, level3_playerHeight)) {
+			level3_powerSpeed2x.active = false;
+			level3_speedMultiplier = 2.0f;
+			level3_playerSpeed = (int)(LEVEL3_BASE_SPEED * 2.0f);
+			level3_speedMultiplierTimer = 500;
+			strcpy_s(level3_message, sizeof(level3_message), "SPEED:2X ACTIVATED! DOUBLE RUNNING SPEED FOR 10 SECONDS!");
+			level3_messageTimer = 70;
+			level3_playPlusPointSound();
+		}
+		if (level3_powerSpeedHalf.active && level3_rectOverlap(level3_powerSpeedHalf.x, level3_powerSpeedHalf.y, level3_powerSpeedHalf.width, level3_powerSpeedHalf.height, level3_playerX, level3_playerY, level3_playerWidth, level3_playerHeight)) {
+			level3_powerSpeedHalf.active = false;
+			level3_speedMultiplier = 0.5f;
+			level3_playerSpeed = (int)(LEVEL3_BASE_SPEED * 0.5f);
+			if (level3_playerSpeed < 2) level3_playerSpeed = 2;
+			level3_speedMultiplierTimer = 500;
+			strcpy_s(level3_message, sizeof(level3_message), "SPEED:0.5X ACTIVATED! HALF RUNNING SPEED FOR 10 SECONDS!");
+			level3_messageTimer = 70;
+			level3_playNegPointSound();
 		}
 
-		// Score:0.5x Collision
-		if (level3_powerHalf.active) {
-			if (level3_rectOverlap(level3_powerHalf.x, level3_powerHalf.y, level3_powerHalf.width, level3_powerHalf.height,
-				level3_playerX, level3_playerY, level3_playerWidth, level3_playerHeight)) {
-				level3_powerHalf.active = false;
-				level3_scoreMultiplier = 0.5f;
-				level3_multiplierTimer = 500;
-				strcpy_s(level3_message, sizeof(level3_message), "SCORE:0.5X ACTIVATED! HALF SCORE FOR 10 SECONDS!");
-				level3_messageTimer = 70;
-				level3_playNegPointSound();
-			}
-		}
-
-		// Speed:2x Collision
-		if (level3_powerSpeed2x.active) {
-			if (level3_rectOverlap(level3_powerSpeed2x.x, level3_powerSpeed2x.y, level3_powerSpeed2x.width, level3_powerSpeed2x.height,
-				level3_playerX, level3_playerY, level3_playerWidth, level3_playerHeight)) {
-				level3_powerSpeed2x.active = false;
-				level3_speedMultiplier = 2.0f;
-				level3_playerSpeed = (int)(LEVEL3_BASE_SPEED * 2.0f);
-				level3_speedMultiplierTimer = 500;
-				strcpy_s(level3_message, sizeof(level3_message), "SPEED:2X ACTIVATED! DOUBLE RUNNING SPEED FOR 10 SECONDS!");
-				level3_messageTimer = 70;
-				level3_playPlusPointSound();
-			}
-		}
-
-		// Speed:0.5x Collision
-		if (level3_powerSpeedHalf.active) {
-			if (level3_rectOverlap(level3_powerSpeedHalf.x, level3_powerSpeedHalf.y, level3_powerSpeedHalf.width, level3_powerSpeedHalf.height,
-				level3_playerX, level3_playerY, level3_playerWidth, level3_playerHeight)) {
-				level3_powerSpeedHalf.active = false;
-				level3_speedMultiplier = 0.5f;
-				level3_playerSpeed = (int)(LEVEL3_BASE_SPEED * 0.5f);
-				if (level3_playerSpeed < 2) level3_playerSpeed = 2;
-				level3_speedMultiplierTimer = 500;
-				strcpy_s(level3_message, sizeof(level3_message), "SPEED:0.5X ACTIVATED! HALF RUNNING SPEED FOR 10 SECONDS!");
-				level3_messageTimer = 70;
-				level3_playNegPointSound();
-			}
-		}
-
-		// Ice Cream Collision
+		// Ice cream eat
 		for (int i = 0; i < LEVEL3_NUM_ICECREAMS; i++) {
 			if (!level3_icecreams[i].active || level3_icecreams[i].collected) continue;
-			if (level3_rectOverlap(level3_icecreams[i].x, level3_icecreams[i].y, level3_icecreams[i].width, level3_icecreams[i].height,
-				level3_playerX, level3_playerY, level3_playerWidth, level3_playerHeight)) {
+			if (level3_rectOverlap(level3_icecreams[i].x, level3_icecreams[i].y, level3_icecreams[i].width, level3_icecreams[i].height, level3_playerX, level3_playerY, level3_playerWidth, level3_playerHeight)) {
 				level3_icecreams[i].collected = true;
 				level3_icecreams[i].active = false;
-
 				level3_consecutiveMissedTreats = 0;
-
 				level3_energy += level3_icecreams[i].energyGain;
 				if (level3_energy > 100) level3_energy = 100;
-
 				level3_updateScore(level3_icecreams[i].scoreGain);
 				level3_playPlusPointSound();
-
 				sprintf_s(level3_message, sizeof(level3_message), "YUMMY! +%d ENERGY RECOVERED!", level3_icecreams[i].energyGain);
 				level3_messageTimer = 60;
 			}
 		}
 	}
 
-	// Running Animation Delay
 	if (level3_isMoving && !level3_isSliding) {
 		level3_animTimer++;
 		if (level3_animTimer >= LEVEL3_ANIM_FRAME_DELAY) {
@@ -1355,20 +1289,12 @@ inline void handleLevel3Clicks(int mx, int my)
 		}
 	}
 
-#if defined(level3door5_active)
 	if (level3door5_active && !level3_gameOver && !level3_isPaused && !level3_keyFound) {
 		level3door5_handleClick(mx, my);
 		return;
 	}
-#endif
 
-#if defined(level3door5_active)
-	bool isD5 = level3door5_active;
-#else
-	bool isD5 = false;
-#endif
-
-	if (level3_gameOver || level3_isPaused || !level3_doorsVisible || level3combat_active || isD5 || level3_keyFound) return;
+	if (level3_gameOver || level3_isPaused || !level3_doorsVisible || level3door4_active || level3door5_active || level3_keyFound) return;
 
 	if (level3_finishStage == 1) {
 		if (mx >= SCREEN_WIDTH / 2 - 120 && mx <= SCREEN_WIDTH / 2 + 120 && my >= 200 && my <= 420) {
@@ -1394,7 +1320,7 @@ inline void handleLevel3Clicks(int mx, int my)
 		if (h == 0) done = L3Door1_HandleClick(mx, my, SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y, &level3_doors[level3_currentTaskDoor].visited, &level3_insideTask);
 		else if (h == 1) done = L3Door2_HandleClick(mx, my, SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y, &level3_doors[level3_currentTaskDoor].visited, &level3_insideTask);
 		else if (h == 2) done = L3Door3_HandleClick(mx, my, SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y, &level3_doors[level3_currentTaskDoor].visited, &level3_insideTask);
-		else if (h == 3) done = L3Door4_HandleClick(mx, my, SCREEN_WIDTH, LEVEL3_OPT_W, LEVEL3_OPT_H, LEVEL3_OPT_GAP, LEVEL3_OPT_Y, &level3_doors[level3_currentTaskDoor].visited, &level3_insideTask);
+
 		if (done && !level3_insideTask) level3_currentTaskDoor = -1;
 		return;
 	}
@@ -1436,21 +1362,11 @@ inline void handleLevel3Clicks(int mx, int my)
 
 			if (level3_doors[i].handlerIndex == 4) {
 				level3_doors[i].visited = true;
-#if defined(startL3Door5Path) || defined(level3door5_active)
 				startL3Door5Path();
-#else
-				startLevel3Combat();
-#endif
 			}
 			else if (level3_doors[i].handlerIndex == 3) {
-#if defined(startL3Door4Path) || defined(level3door4_active)
 				level3_doors[i].visited = true;
 				startL3Door4Path();
-#else
-				level3_currentTaskDoor = i;
-				level3_insideTask = true;
-				L3Door4_GenerateTask();
-#endif
 			}
 			else {
 				level3_currentTaskDoor = i;
