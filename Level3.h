@@ -146,6 +146,7 @@ static Level3PowerUp level3_powerSpeed2x;
 static Level3PowerUp level3_powerSpeedHalf;
 static int level3_powerSpawnCounter = 0;
 
+//player position check, if it is in exclave
 inline bool level3_isWorldXOnExclave(int worldX)
 {
 	for (int e = 0; e < LEVEL3_NUM_EXCLAVES; e++) {
@@ -157,6 +158,7 @@ inline bool level3_isWorldXOnExclave(int worldX)
 	return false;
 }
 
+//highscore read from file
 inline void level3_loadHighScore()
 {
 	FILE* fp = NULL;
@@ -168,6 +170,7 @@ inline void level3_loadHighScore()
 	level3_highScoreLoaded = true;
 }
 
+//highscore save from file
 inline void level3_saveHighScore()
 {
 	FILE* fp = NULL;
@@ -178,6 +181,7 @@ inline void level3_saveHighScore()
 	}
 }
 
+//score update & highscore check
 inline void level3_updateScore(int addPoints)
 {
 	if (addPoints > 0) {
