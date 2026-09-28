@@ -86,16 +86,16 @@ Note: keep the `Image` and `Audios` folders in the project folder so all picture
 ## Screenshots
 
 ### **Menu**
-<img src="ADD_IMAGE_LINK_HERE" width="200" height="200">
+<img src="Image/Homepage.png" width="200" height="200">
 
 ### **Level 1**
-<img src="ADD_IMAGE_LINK_HERE" width="200" height="200">
+<img src="Image/level1.png" width="200" height="200">
 
 ### **Level 2**
-<img src="ADD_IMAGE_LINK_HERE" width="200" height="200">
+<img src="Image/level2.png" width="200" height="200">
 
 ### **Level 3**
-<img src="ADD_IMAGE_LINK_HERE" width="200" height="200">
+<img src="Image/level3.png" width="200" height="200">
 
 ## Youtube Link
 [CSE 1200 Project: KeyScape](ADD_YOUTUBE_LINK_HERE)
