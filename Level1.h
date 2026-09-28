@@ -538,11 +538,48 @@ inline void level1_drawWeaponIcon(int cx, int cy, int size, WeaponType weapon)
 
 inline void level1_drawKeyIcon(int cx, int cy, int size)
 {
+	// Main filled key in Gold
 	iSetColor(255, 215, 0);
 	iFilledCircle(cx - size / 2, cy, size / 3);
 	iFilledRectangle(cx - size / 4, cy - size / 10, size, size / 5);
 	iFilledRectangle(cx + size / 2 - size / 6, cy - size / 3, size / 8, size / 5);
 	iFilledRectangle(cx + size / 3, cy - size / 3, size / 8, size / 5);
+
+	// Black outline for key shapes
+	iSetColor(0, 0, 0);
+	iCircle(cx - size / 2, cy, size / 3);
+	iRectangle(cx - size / 4, cy - size / 10, size, size / 5);
+	iRectangle(cx + size / 2 - size / 6, cy - size / 3, size / 8, size / 5);
+	iRectangle(cx + size / 3, cy - size / 3, size / 8, size / 5);
+}
+
+// Sparkle Effect Helper for Main Key
+inline void level1_drawSparklingKeyIcon(int cx, int cy, int size)
+{
+	level1_drawKeyIcon(cx, cy, size);
+
+	// Sparkle effect around key
+	int t = level1_stateTimer;
+	int pulse = (int)(8 * sin(t * 0.15));
+	int sparkleOffsets[6][2] = {
+		{ -size / 2 - 20, 20 },
+		{ size / 2 + 15, -20 },
+		{ 0, size / 3 + 15 },
+		{ -size / 4, -size / 3 - 10 },
+		{ size / 3, size / 4 + 10 },
+		{ size / 2 + 30, 10 }
+	};
+
+	for (int i = 0; i < 6; i++) {
+		if ((t / 8 + i) % 2 == 0) {
+			int sx = cx + sparkleOffsets[i][0] + (pulse / 2);
+			int sy = cy + sparkleOffsets[i][1] - (pulse / 2);
+			iSetColor(255, 255, 220);
+			iFilledCircle(sx, sy, 4 + (i % 3));
+			iSetColor(255, 215, 0);
+			iCircle(sx, sy, 5 + (i % 3));
+		}
+	}
 }
 
 // Exact Key Drawing matched with Level 2's visual helper
@@ -553,17 +590,17 @@ inline void level1_drawKeyVisual(float x, float y, int size, int r, int g, int b
 	level2_drawKeyVisual(x, y, size, r, g, b);
 }
 
-inline void level1_drawDoorBackdrop(int mainBg, int doorClosedImg, int doorOpenImg)
+inline void level1_drawDoorBackdrop(int pathBgImg, int doorClosedImg, int doorOpenImg)
 {
-	iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, mainBg);
+	if (pathBgImg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, pathBgImg);
 	for (int i = 0; i < 3; i++) {
 		int imgToUse = level1_doors[i].visited ? doorOpenImg : doorClosedImg;
-		iShowImage(level1_doors[i].x, level1_doors[i].y, level1_doors[i].width, level1_doors[i].height, imgToUse);
+		if (imgToUse >= 0) iShowImage(level1_doors[i].x, level1_doors[i].y, level1_doors[i].width, level1_doors[i].height, imgToUse);
 
-		// Draw Door Color Badge Indicator
+		// Draw Color Badge Indicator ABOVE the door
 		int reqId = level1_doors[i].requiredKeyId;
 		int cx = level1_doors[i].x + level1_doors[i].width / 2;
-		int cy = level1_doors[i].y + level1_doors[i].height / 2 + 10;
+		int cy = level1_doors[i].y + level1_doors[i].height + 20;
 		iSetColor(level1_keyColor[reqId][0], level1_keyColor[reqId][1], level1_keyColor[reqId][2]);
 		iFilledCircle(cx, cy, 14);
 		iSetColor(0, 0, 0);
@@ -607,14 +644,9 @@ inline void level1_startPuzzle()
 	level1_stateTimer = 0;
 }
 
-inline void level1_renderPuzzle(int mainBg, int doorClosedImg, int doorOpenImg)
+inline void level1_renderPuzzle(int pathBgImg, int doorClosedImg, int doorOpenImg)
 {
-	level1_drawDoorBackdrop(mainBg, doorClosedImg, doorOpenImg);
-
-	iSetColor(255, 250, 235);
-	iFilledRectangle(SCREEN_WIDTH / 2 - 320, 150, 640, 340);
-	iSetColor(0, 0, 0);
-	iRectangle(SCREEN_WIDTH / 2 - 320, 150, 640, 340);
+	if (pathBgImg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, pathBgImg);
 
 	iSetColor(0, 0, 0);
 	iText(SCREEN_WIDTH / 2 - 170, 460, "The RIGHT door - an ancient rune lock!");
@@ -766,16 +798,14 @@ inline void level1_startCombat(EnemyType type)
 inline void level1_renderCombat(int pathBg, int heroIdleImg,
 	int scorpionIdle, int scorpionAttack, int mummyIdle, int mummyAttack)
 {
-	iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, pathBg);
+	if (pathBg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, pathBg);
 
 	int playerX = ARENA_PLAYER_X, playerY = ARENA_PLAYER_Y;
 	int enemyX = level1_enemyArenaX, enemyY = ARENA_ENEMY_Y;
 
-	// Hero
-	iShowImage(playerX, playerY, level1_playerWidth, level1_playerHeight, heroIdleImg);
-	if (level1_playerHurtTimer > 0 && (level1_playerHurtTimer / 3) % 2 == 0) {
-		iSetColor(255, 60, 60);
-		iFilledRectangle(playerX, playerY, level1_playerWidth, level1_playerHeight);
+	// Hero render without red rectangle
+	if (heroIdleImg >= 0 && (level1_playerHurtTimer <= 0 || (level1_playerHurtTimer / 2) % 2 == 0)) {
+		iShowImage(playerX, playerY, level1_playerWidth, level1_playerHeight, heroIdleImg);
 	}
 	level1_drawWeaponIcon(playerX + level1_playerWidth + 25, playerY + 70, 60, level1_currentWeapon);
 
@@ -784,17 +814,12 @@ inline void level1_renderCombat(int pathBg, int heroIdleImg,
 		iFilledRectangle(playerX + level1_playerWidth + 10, playerY + 60, 65, 10);
 	}
 
-	// Enemy
+	// Enemy render without grey rectangle
 	int idleImg = (level1_currentEnemy == ENEMY_SCORPION) ? scorpionIdle : mummyIdle;
 	int attackImg = (level1_currentEnemy == ENEMY_SCORPION) ? scorpionAttack : mummyAttack;
 	int enemyImg = (level1_enemyAttackAnimTimer > 0) ? attackImg : idleImg;
 
-	bool hurtBlink = (level1_enemyHurtTimer > 0 && (level1_enemyHurtTimer / 3) % 2 == 0);
-	if (hurtBlink) {
-		iSetColor(255, 90, 70);
-		iFilledRectangle(enemyX, enemyY, ARENA_ENEMY_W, ARENA_ENEMY_H);
-	}
-	else {
+	if (enemyImg >= 0 && (level1_enemyHurtTimer <= 0 || (level1_enemyHurtTimer / 2) % 2 == 0)) {
 		iShowImage(enemyX, enemyY, ARENA_ENEMY_W, ARENA_ENEMY_H, enemyImg);
 	}
 
@@ -883,7 +908,7 @@ inline void level1_combat_fixedUpdate()
 // =====================================================================
 inline void level1_drawTreasureBox(int treasureImg, bool opened)
 {
-	iShowImage(TREASURE_X, TREASURE_Y, TREASURE_W, TREASURE_H, treasureImg);
+	if (treasureImg >= 0) iShowImage(TREASURE_X, TREASURE_Y, TREASURE_W, TREASURE_H, treasureImg);
 
 	if (opened) {
 		int pulse = 40 + (int)(30 * ((level1_treasureGlowTimer % 40) / 40.0));
@@ -964,9 +989,11 @@ inline void renderLevel1()
 	case L1_RUNNING:
 	case L1_DOOR_SELECT:
 	{
-						   iShowImage(level1_bgX, 0, SCREEN_WIDTH, SCREEN_HEIGHT, mainBg);
-						   iShowImage(level1_bgX + SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, mainBg);
-						   iShowImage(level1_bgX - SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, mainBg);
+						   if (mainBg >= 0) {
+							   iShowImage(level1_bgX, 0, SCREEN_WIDTH, SCREEN_HEIGHT, mainBg);
+							   iShowImage(level1_bgX + SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, mainBg);
+							   iShowImage(level1_bgX - SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, mainBg);
+						   }
 
 						   if (level1_state == L1_RUNNING) {
 							   for (int i = 0; i < LEVEL1_NUM_KEYS; i++) {
@@ -988,21 +1015,21 @@ inline void renderLevel1()
 							   playerImg = runFrames[level1_animFrame];
 						   }
 
-						   iShowImage(level1_playerX, level1_playerY, level1_playerWidth, level1_playerHeight, playerImg);
-						   if (level1_playerHurtTimer > 0 && (level1_playerHurtTimer / 3) % 2 == 0) {
-							   iSetColor(255, 60, 60);
-							   iFilledRectangle(level1_playerX, level1_playerY, level1_playerWidth, level1_playerHeight);
+						   if (playerImg >= 0) {
+							   iShowImage(level1_playerX, level1_playerY, level1_playerWidth, level1_playerHeight, playerImg);
 						   }
 
 						   if (level1_state == L1_DOOR_SELECT) {
 							   for (int i = 0; i < 3; i++) {
 								   int imgToUse = level1_doors[i].visited ? doorOpenImg : doorClosedImg;
-								   iShowImage(level1_doors[i].x, level1_doors[i].y, level1_doors[i].width, level1_doors[i].height, imgToUse);
+								   if (imgToUse >= 0) {
+									   iShowImage(level1_doors[i].x, level1_doors[i].y, level1_doors[i].width, level1_doors[i].height, imgToUse);
+								   }
 
-								   // Draw Color Circle Badge on Door
+								   // Draw Color Circle Badge ABOVE the door
 								   int reqId = level1_doors[i].requiredKeyId;
 								   int cx = level1_doors[i].x + level1_doors[i].width / 2;
-								   int cy = level1_doors[i].y + level1_doors[i].height / 2 + 10;
+								   int cy = level1_doors[i].y + level1_doors[i].height + 20;
 								   iSetColor(level1_keyColor[reqId][0], level1_keyColor[reqId][1], level1_keyColor[reqId][2]);
 								   iFilledCircle(cx, cy, 14);
 								   iSetColor(0, 0, 0);
@@ -1031,7 +1058,7 @@ inline void renderLevel1()
 
 	case L1_WRONG_DOOR_MSG:
 	{
-							  level1_drawDoorBackdrop(mainBg, doorClosedImg, doorOpenImg);
+							  level1_drawDoorBackdrop(pathBg, doorClosedImg, doorOpenImg);
 							  iSetColor(0, 0, 0);
 							  iText(SCREEN_WIDTH / 2 - 200, 400,
 								  (char*)(level1_currentEnemy == ENEMY_SCORPION
@@ -1042,23 +1069,23 @@ inline void renderLevel1()
 	}
 
 	case L1_PUZZLE:
-		level1_renderPuzzle(mainBg, doorClosedImg, doorOpenImg);
+		level1_renderPuzzle(pathBg, doorClosedImg, doorOpenImg);
 		break;
 
 	case L1_KEY_FOUND:
 	{
-						 level1_drawDoorBackdrop(mainBg, doorClosedImg, doorOpenImg);
-						 level1_drawKeyIcon(SCREEN_WIDTH / 2, 350, 120);
+						 if (pathBg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, pathBg);
+						 level1_drawSparklingKeyIcon(SCREEN_WIDTH / 2, 350, 120);
 						 iSetColor(0, 0, 0);
 						 iText(SCREEN_WIDTH / 2 - 90, 250, "YOU FOUND THE KEY!");
-						 iText(SCREEN_WIDTH / 2 - 170, 220, "Go find the treasure box to unlock it...");
+						 iText(SCREEN_WIDTH / 2 - 150, 220, "Click the KEY to go to the treasure!");
 						 level1_drawHUD();
 						 break;
 	}
 
 	case L1_TREASURE:
 	{
-						iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, mainBg);
+						if (mainBg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, mainBg);
 						level1_drawTreasureBox(treasureImg, false);
 						iSetColor(0, 0, 0);
 						iText(SCREEN_WIDTH / 2 - 140, 480, "Click the treasure box to unlock it!");
@@ -1236,10 +1263,6 @@ inline void level1_fixedUpdate()
 
 	case L1_KEY_FOUND:
 		level1_stateTimer++;
-		if (level1_stateTimer >= 60) {
-			level1_state = L1_TREASURE;
-			level1_stateTimer = 0;
-		}
 		break;
 
 	case L1_TREASURE:
@@ -1263,6 +1286,14 @@ inline bool level1_pointInTreasure(int mx, int my)
 {
 	return (mx >= TREASURE_X && mx <= TREASURE_X + TREASURE_W &&
 		my >= TREASURE_Y && my <= TREASURE_Y + TREASURE_H);
+}
+
+inline bool level1_pointInMainKey(int mx, int my)
+{
+	int kx = SCREEN_WIDTH / 2;
+	int ky = 350;
+	int size = 120;
+	return (mx >= kx - size && mx <= kx + size && my >= ky - size / 2 && my <= ky + size / 2);
 }
 
 inline void handleLevel1DoorClicks(int mx, int my)
@@ -1339,6 +1370,13 @@ inline void handleLevel1DoorClicks(int mx, int my)
 	}
 	else if (level1_state == L1_PUZZLE) {
 		level1_handlePuzzleClick(mx, my);
+	}
+	else if (level1_state == L1_KEY_FOUND) {
+		if (level1_pointInMainKey(mx, my)) {
+			level1_playPlusPointSound();
+			level1_state = L1_TREASURE;
+			level1_stateTimer = 0;
+		}
 	}
 	else if (level1_state == L1_TREASURE) {
 		if (level1_pointInTreasure(mx, my)) {
