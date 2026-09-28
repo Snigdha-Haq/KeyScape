@@ -1058,7 +1058,7 @@ inline void renderLevel1()
 
 	case L1_WRONG_DOOR_MSG:
 	{
-							  level1_drawDoorBackdrop(pathBg, doorClosedImg, doorOpenImg);
+							  if (pathBg >= 0) iShowImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, pathBg);
 							  iSetColor(0, 0, 0);
 							  iText(SCREEN_WIDTH / 2 - 200, 400,
 								  (char*)(level1_currentEnemy == ENEMY_SCORPION
