@@ -51,7 +51,7 @@ inline void level1_playLoseSound() {
 
 // ---------------- LEVEL STATE MACHINE ----------------
 enum Level1State {
-	L1_RUNNING,             // holding RIGHT to reach the doors, dodging cacti
+	L1_RUNNING,             // holding RIGHT to reach the doors, collecting keys
 	L1_DOOR_SELECT,         // 3 doors visible, waiting for a click
 	L1_COMBAT,              // fighting the enemy behind a WRONG door
 	L1_WRONG_DOOR_MSG,      // brief "enemy defeated, wrong door" message
@@ -65,6 +65,10 @@ static Level1State level1_state = L1_RUNNING;
 static int level1_stateTimer = 0;   // generic frame counter for transient states
 static bool level1_isPaused = false;
 static bool level1_hasPlayedEndAudio = false;
+
+// Message notification
+static char level1_message[120] = "";
+static int level1_messageTimer = 0;
 
 // ---------------- IN-GAME SETTINGS POPUP MENU ----------------
 static bool level1_showSettingsMenu = false;
@@ -82,8 +86,13 @@ enum EnemyType  { ENEMY_SCORPION, ENEMY_MUMMY };
 enum WeaponType { WEAPON_SWORD, WEAPON_CLUB };
 
 // ---------------- PLAYER / WORLD ----------------
+#define LEVEL1_PLAYER_NORMAL_W 90
+#define LEVEL1_PLAYER_NORMAL_H 130
+#define LEVEL1_PLAYER_SLIDE_W  120
+#define LEVEL1_PLAYER_SLIDE_H  60
+
 static int  level1_playerX = 100, level1_playerY = 80;
-static int  level1_playerWidth = 90, level1_playerHeight = 130;
+static int  level1_playerWidth = LEVEL1_PLAYER_NORMAL_W, level1_playerHeight = LEVEL1_PLAYER_NORMAL_H;
 static int  level1_playerSpeed = 6;
 
 static int  level1_bgX = 0;
@@ -95,25 +104,41 @@ static int  level1_animFrame = 0;
 static int  level1_animTimer = 0;
 #define ANIM_FRAME_DELAY 6
 
-// ---------------- JUMPING (over cacti) ----------------
+// ---------------- JUMPING & SLIDING ----------------
 #define GROUND_Y        80
 #define JUMP_STRENGTH   16
 #define GRAVITY_STEP     1
 static bool  level1_isJumping = false;
 static float level1_jumpVelocity = 0.0f;
 
-// ---------------- CACTUS OBSTACLES ----------------
-#define MAX_CACTUS          4
-#define CACTUS_W          46
-#define CACTUS_H          72
-#define CACTUS_MIN_GAP   110
-#define CACTUS_MAX_GAP   190
-#define CACTUS_HIT_DAMAGE 12
-#define CACTUS_HIT_INVULN 45
+static bool level1_isSliding = false;
+static int level1_slideTimer = 0;
+#define LEVEL1_SLIDE_DURATION 28
 
-struct Cactus { float x; bool active; };
-static Cactus level1_cacti[MAX_CACTUS];
-static int level1_cactusSpawnTimer = 0;
+// ---------------- 3 KEYS ----------------
+#define LEVEL1_NUM_KEYS 3
+#define LEVEL1_KEY_SIZE 40
+
+struct Level1KeyItem {
+	float y;
+	int size;
+	int id;
+	int trackPos;
+	bool isAir;
+	bool collected;
+};
+
+static Level1KeyItem level1_collectibleKeys[LEVEL1_NUM_KEYS];
+static int level1_keySpawnDistance[LEVEL1_NUM_KEYS] = { 450, 950, 1450 };
+
+static int level1_keyColor[LEVEL1_NUM_KEYS][3] = {
+	{ 255, 215, 0 },   // Key 0 - Gold
+	{ 65, 145, 220 },  // Key 1 - Blue
+	{ 60, 200, 90 }    // Key 2 - Green
+};
+
+static bool level1_keyCollected[LEVEL1_NUM_KEYS] = { false, false, false };
+
 static int level1_playerHurtTimer = 0;
 
 // ---------------- ENERGY & SCORE & HIGHSCORE ----------------
@@ -155,8 +180,12 @@ inline void level1_updateScore(int addPoints)
 	}
 }
 
-// ---------------- DOORS ----------------
-struct Level1Door { int x, y, width, height; bool visited; };
+// ---------------- DOORS & COLOR MATCHING ----------------
+struct Level1Door {
+	int x, y, width, height;
+	bool visited;
+	int requiredKeyId; // Key ID required to open this door
+};
 
 #define DOOR_WIDTH  120
 #define DOOR_HEIGHT 180
@@ -255,6 +284,12 @@ static int level1_enemyArenaX;
 inline void level1_startPuzzle();
 inline void level1_startCombat(EnemyType type);
 
+// Helper function for collision checking
+inline bool level1_rectOverlap(float ax, float ay, int aw, int ah, float bx, float by, int bw, int bh)
+{
+	return (ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by);
+}
+
 // =====================================================================
 //  SETUP
 // =====================================================================
@@ -268,12 +303,16 @@ inline void setupLevel1()
 
 	level1_correctPath = rand() % 3;
 
-	level1_doors[0] = { DOORS_START_X, DOOR_Y, DOOR_WIDTH, DOOR_HEIGHT, false };
-	level1_doors[1] = { DOORS_START_X + (DOOR_WIDTH + DOOR_GAP), DOOR_Y, DOOR_WIDTH, DOOR_HEIGHT, false };
-	level1_doors[2] = { DOORS_START_X + 2 * (DOOR_WIDTH + DOOR_GAP), DOOR_Y, DOOR_WIDTH, DOOR_HEIGHT, false };
+	// Assign unique key colors to doors 0, 1, 2
+	level1_doors[0] = { DOORS_START_X, DOOR_Y, DOOR_WIDTH, DOOR_HEIGHT, false, 0 };
+	level1_doors[1] = { DOORS_START_X + (DOOR_WIDTH + DOOR_GAP), DOOR_Y, DOOR_WIDTH, DOOR_HEIGHT, false, 1 };
+	level1_doors[2] = { DOORS_START_X + 2 * (DOOR_WIDTH + DOOR_GAP), DOOR_Y, DOOR_WIDTH, DOOR_HEIGHT, false, 2 };
 
 	level1_playerX = 100;
 	level1_playerY = GROUND_Y;
+	level1_playerWidth = LEVEL1_PLAYER_NORMAL_W;
+	level1_playerHeight = LEVEL1_PLAYER_NORMAL_H;
+
 	level1_bgX = 0;
 	level1_distanceCovered = 0;
 	level1_isMoving = false;
@@ -282,9 +321,21 @@ inline void setupLevel1()
 
 	level1_isJumping = false;
 	level1_jumpVelocity = 0.0f;
+	level1_isSliding = false;
+	level1_slideTimer = 0;
 
-	for (int i = 0; i < MAX_CACTUS; i++) level1_cacti[i] = { 0.0f, false };
-	level1_cactusSpawnTimer = CACTUS_MIN_GAP + rand() % (CACTUS_MAX_GAP - CACTUS_MIN_GAP);
+	// 3 Keys Setup
+	bool keyAirList[LEVEL1_NUM_KEYS] = { false, true, false };
+	for (int i = 0; i < LEVEL1_NUM_KEYS; i++) {
+		level1_collectibleKeys[i].id = i;
+		level1_collectibleKeys[i].isAir = keyAirList[i];
+		level1_collectibleKeys[i].trackPos = level1_keySpawnDistance[i];
+		level1_collectibleKeys[i].collected = false;
+		level1_collectibleKeys[i].size = LEVEL1_KEY_SIZE;
+		level1_collectibleKeys[i].y = level1_collectibleKeys[i].isAir ? 210.0f : (GROUND_Y + 25.0f);
+		level1_keyCollected[i] = false;
+	}
+
 	level1_playerHurtTimer = 0;
 
 	level1_energy = PLAYER_MAX_ENERGY;
@@ -307,6 +358,9 @@ inline void setupLevel1()
 	level1_showSettingsMenu = false;
 	level1_hasPlayedEndAudio = false;
 
+	level1_message[0] = '\0';
+	level1_messageTimer = 0;
+
 	level1_state = L1_RUNNING;
 	level1_stateTimer = 0;
 }
@@ -323,6 +377,21 @@ inline void level1_drawBoldText(int x, int y, const char* str, void* font)
 // ---------------- SHARED HUD ----------------
 inline void level1_drawHUD()
 {
+	// 3 Keys HUD
+	for (int i = 0; i < LEVEL1_NUM_KEYS; i++) {
+		int hx = 25 + i * 35, hy = 25;
+		if (level1_keyCollected[i])
+			iSetColor(level1_keyColor[i][0], level1_keyColor[i][1], level1_keyColor[i][2]);
+		else
+			iSetColor(160, 160, 160);
+		iFilledCircle(hx, hy, 12);
+		iSetColor(0, 0, 0);
+		iCircle(hx, hy, 12);
+	}
+	iSetColor(0, 0, 0);
+	iText(20, 50, "Keys Collected");
+
+	// Energy
 	iSetColor(200, 200, 200);
 	iFilledRectangle(20, SCREEN_HEIGHT - 40, 200, 20);
 	iSetColor(level1_energy > 30 ? 0 : 200, level1_energy > 30 ? 200 : 0, 0);
@@ -376,7 +445,6 @@ inline void level1_drawSettingsUI()
 		if (btnSoundOff < 0) btnSoundOff = iLoadImage("soundOff.png");
 	}
 
-	// Settings Gear Icon (44x44 px)
 	if (btnSettings >= 0) {
 		iShowImage(LEVEL1_SETTING_BTN_X - 22, LEVEL1_SETTING_BTN_Y - 22, 44, 44, btnSettings);
 	}
@@ -386,7 +454,6 @@ inline void level1_drawSettingsUI()
 	}
 
 	if (level1_showSettingsMenu) {
-		// Restart (40x40 px)
 		if (btnRestart >= 0) {
 			iShowImage(LEVEL1_SETTING_BTN_X - 20, LEVEL1_SUB_R_Y - 20, 40, 40, btnRestart);
 		}
@@ -396,7 +463,6 @@ inline void level1_drawSettingsUI()
 			level1_drawBoldText(LEVEL1_SETTING_BTN_X - 6, LEVEL1_SUB_R_Y - 7, "R", GLUT_BITMAP_TIMES_ROMAN_24);
 		}
 
-		// Pause / Play (40x40 px)
 		if (level1_isPaused) {
 			if (btnPause >= 0) iShowImage(LEVEL1_SETTING_BTN_X - 20, LEVEL1_SUB_P_Y - 20, 40, 40, btnPause);
 			else {
@@ -414,7 +480,6 @@ inline void level1_drawSettingsUI()
 			}
 		}
 
-		// Menu (40x40 px)
 		if (btnMenu >= 0) {
 			iShowImage(LEVEL1_SETTING_BTN_X - 20, LEVEL1_SUB_M_Y - 20, 40, 40, btnMenu);
 		}
@@ -424,7 +489,6 @@ inline void level1_drawSettingsUI()
 			level1_drawBoldText(LEVEL1_SETTING_BTN_X - 8, LEVEL1_SUB_M_Y - 7, "M", GLUT_BITMAP_TIMES_ROMAN_24);
 		}
 
-		// Sound On/Off (40x40 px)
 		if (isSoundMuted) {
 			if (btnSoundOff >= 0) iShowImage(LEVEL1_SETTING_BTN_X - 20, LEVEL1_SUB_S_Y - 20, 40, 40, btnSoundOff);
 			else {
@@ -449,7 +513,7 @@ inline void level1_drawSettingsUI()
 	}
 }
 
-// ---------------- VECTOR ART: WEAPONS, KEY, CACTUS ----------------
+// ---------------- WEAPONS & KEY DRAWING ----------------
 inline void level1_drawWeaponIcon(int cx, int cy, int size, WeaponType weapon)
 {
 	if (weapon == WEAPON_SWORD) {
@@ -481,20 +545,12 @@ inline void level1_drawKeyIcon(int cx, int cy, int size)
 	iFilledRectangle(cx + size / 3, cy - size / 3, size / 8, size / 5);
 }
 
-inline void level1_drawCactus(float x, int groundY)
+// Exact Key Drawing matched with Level 2's visual helper
+extern void level2_drawKeyVisual(float x, float y, int size, int r, int g, int b);
+
+inline void level1_drawKeyVisual(float x, float y, int size, int r, int g, int b)
 {
-	int ix = (int)x;
-	iSetColor(40, 120, 55);
-	iFilledRectangle(ix + 13, groundY, 20, CACTUS_H);
-	iFilledRectangle(ix, groundY + 24, 15, 28);
-	iFilledRectangle(ix + 31, groundY + 34, 15, 24);
-	iSetColor(30, 95, 42);
-	iRectangle(ix + 13, groundY, 20, CACTUS_H);
-	iSetColor(230, 230, 210);
-	for (int s = 0; s < 5; s++) {
-		iFilledRectangle(ix + 12, groundY + 8 + s * 13, 2, 4);
-		iFilledRectangle(ix + 31, groundY + 8 + s * 13, 2, 4);
-	}
+	level2_drawKeyVisual(x, y, size, r, g, b);
 }
 
 inline void level1_drawDoorBackdrop(int mainBg, int doorClosedImg, int doorOpenImg)
@@ -503,6 +559,15 @@ inline void level1_drawDoorBackdrop(int mainBg, int doorClosedImg, int doorOpenI
 	for (int i = 0; i < 3; i++) {
 		int imgToUse = level1_doors[i].visited ? doorOpenImg : doorClosedImg;
 		iShowImage(level1_doors[i].x, level1_doors[i].y, level1_doors[i].width, level1_doors[i].height, imgToUse);
+
+		// Draw Door Color Badge Indicator
+		int reqId = level1_doors[i].requiredKeyId;
+		int cx = level1_doors[i].x + level1_doors[i].width / 2;
+		int cy = level1_doors[i].y + level1_doors[i].height / 2 + 10;
+		iSetColor(level1_keyColor[reqId][0], level1_keyColor[reqId][1], level1_keyColor[reqId][2]);
+		iFilledCircle(cx, cy, 14);
+		iSetColor(0, 0, 0);
+		iCircle(cx, cy, 14);
 	}
 }
 
@@ -840,7 +905,7 @@ inline void level1_drawTreasureBox(int treasureImg, bool opened)
 // =====================================================================
 inline void level1_updateJumpPhysics()
 {
-	if (isSpecialKeyPressed(GLUT_KEY_UP) && !level1_isJumping) {
+	if (isSpecialKeyPressed(GLUT_KEY_UP) && !level1_isJumping && !level1_isSliding) {
 		level1_isJumping = true;
 		level1_jumpVelocity = JUMP_STRENGTH;
 	}
@@ -855,60 +920,12 @@ inline void level1_updateJumpPhysics()
 	}
 }
 
-inline void level1_updateCacti()
-{
-	level1_cactusSpawnTimer--;
-	if (level1_cactusSpawnTimer <= 0) {
-		for (int i = 0; i < MAX_CACTUS; i++) {
-			if (!level1_cacti[i].active) {
-				level1_cacti[i].active = true;
-				level1_cacti[i].x = (float)(SCREEN_WIDTH + rand() % 120);
-				break;
-			}
-		}
-		level1_cactusSpawnTimer = CACTUS_MIN_GAP + rand() % (CACTUS_MAX_GAP - CACTUS_MIN_GAP);
-	}
-
-	for (int i = 0; i < MAX_CACTUS; i++) {
-		if (!level1_cacti[i].active) continue;
-		level1_cacti[i].x -= level1_playerSpeed;
-		if (level1_cacti[i].x + CACTUS_W < 0) level1_cacti[i].active = false;
-	}
-
-	if (level1_playerHurtTimer > 0) level1_playerHurtTimer--;
-
-	int hx0 = level1_playerX + 18, hx1 = level1_playerX + level1_playerWidth - 18;
-	int hy0 = level1_playerY;
-
-	for (int i = 0; i < MAX_CACTUS; i++) {
-		if (!level1_cacti[i].active) continue;
-		int cx0 = (int)level1_cacti[i].x, cx1 = (int)level1_cacti[i].x + CACTUS_W;
-
-		bool xOverlap = (hx1 >= cx0 && hx0 <= cx1);
-		bool tooLowToClear = (hy0 < GROUND_Y + CACTUS_H - 10);
-
-		if (xOverlap && tooLowToClear && level1_playerHurtTimer <= 0) {
-			level1_energy -= CACTUS_HIT_DAMAGE;
-			if (level1_energy < 0) level1_energy = 0;
-			level1_playerHurtTimer = CACTUS_HIT_INVULN;
-			level1_cacti[i].active = false;
-			level1_playNegPointSound();
-
-			if (level1_energy <= 0) {
-				level1_state = L1_GAME_OVER;
-				level1_stateTimer = 0;
-				return;
-			}
-		}
-	}
-}
-
 // =====================================================================
 //  RENDER
 // =====================================================================
 inline void renderLevel1()
 {
-	static int mainBg = -1, doorClosedImg = -1, doorOpenImg = -1, idleImg = -1;
+	static int mainBg = -1, doorClosedImg = -1, doorOpenImg = -1, idleImg = -1, slideImg = -1;
 	static int pathBg = -1, treasureImg = -1;
 	static int bgSeaScoreImg = -1, bgSeaOutImg = -1;
 	static int runFrames[8];
@@ -919,6 +936,8 @@ inline void renderLevel1()
 		doorClosedImg = iLoadImage("Image/doorclosed.png");
 		doorOpenImg = iLoadImage("Image/dooropened.png");
 		idleImg = iLoadImage("Image/idle_1.png");
+		slideImg = iLoadImage("Image/slide.png");
+
 		runFrames[0] = iLoadImage("Image/run_1.png");
 		runFrames[1] = iLoadImage("Image/run_2.png");
 		runFrames[2] = iLoadImage("Image/run_3.png");
@@ -950,11 +969,25 @@ inline void renderLevel1()
 						   iShowImage(level1_bgX - SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT, mainBg);
 
 						   if (level1_state == L1_RUNNING) {
-							   for (int i = 0; i < MAX_CACTUS; i++)
-							   if (level1_cacti[i].active) level1_drawCactus(level1_cacti[i].x, GROUND_Y);
+							   for (int i = 0; i < LEVEL1_NUM_KEYS; i++) {
+								   if (!level1_collectibleKeys[i].collected) {
+									   float screenKeyX = (float)(level1_collectibleKeys[i].trackPos - level1_distanceCovered + 100);
+									   if (screenKeyX >= -50 && screenKeyX <= SCREEN_WIDTH + 50) {
+										   level1_drawKeyVisual(screenKeyX, level1_collectibleKeys[i].y, level1_collectibleKeys[i].size,
+											   level1_keyColor[i][0], level1_keyColor[i][1], level1_keyColor[i][2]);
+									   }
+								   }
+							   }
 						   }
 
-						   int playerImg = level1_isMoving ? runFrames[level1_animFrame] : idleImg;
+						   int playerImg = idleImg;
+						   if (level1_isSliding) {
+							   playerImg = (slideImg >= 0) ? slideImg : idleImg;
+						   }
+						   else if (level1_isMoving) {
+							   playerImg = runFrames[level1_animFrame];
+						   }
+
 						   iShowImage(level1_playerX, level1_playerY, level1_playerWidth, level1_playerHeight, playerImg);
 						   if (level1_playerHurtTimer > 0 && (level1_playerHurtTimer / 3) % 2 == 0) {
 							   iSetColor(255, 60, 60);
@@ -965,6 +998,15 @@ inline void renderLevel1()
 							   for (int i = 0; i < 3; i++) {
 								   int imgToUse = level1_doors[i].visited ? doorOpenImg : doorClosedImg;
 								   iShowImage(level1_doors[i].x, level1_doors[i].y, level1_doors[i].width, level1_doors[i].height, imgToUse);
+
+								   // Draw Color Circle Badge on Door
+								   int reqId = level1_doors[i].requiredKeyId;
+								   int cx = level1_doors[i].x + level1_doors[i].width / 2;
+								   int cy = level1_doors[i].y + level1_doors[i].height / 2 + 10;
+								   iSetColor(level1_keyColor[reqId][0], level1_keyColor[reqId][1], level1_keyColor[reqId][2]);
+								   iFilledCircle(cx, cy, 14);
+								   iSetColor(0, 0, 0);
+								   iCircle(cx, cy, 14);
 							   }
 						   }
 
@@ -972,9 +1014,14 @@ inline void renderLevel1()
 
 						   iSetColor(0, 0, 0);
 						   if (level1_state == L1_RUNNING)
-							   iText(SCREEN_WIDTH / 2 - 190, SCREEN_HEIGHT - 40, "Hold RIGHT to run - UP to jump over cacti!");
+							   iText(SCREEN_WIDTH / 2 - 200, SCREEN_HEIGHT - 40, "Hold RIGHT to run - UP to Jump, DOWN to Slide!");
 						   else
-							   iText(SCREEN_WIDTH / 2 - 100, SCREEN_HEIGHT - 40, "Click an unopened door");
+							   iText(SCREEN_WIDTH / 2 - 180, SCREEN_HEIGHT - 40, "Match the door's color circle with your collected keys!");
+
+						   if (level1_messageTimer > 0) {
+							   iSetColor(220, 20, 20);
+							   level1_drawBoldText(SCREEN_WIDTH / 2 - 180, SCREEN_HEIGHT - 70, level1_message, GLUT_BITMAP_HELVETICA_18);
+						   }
 						   break;
 	}
 
@@ -1101,13 +1148,32 @@ inline void level1_fixedUpdate()
 	}
 	level1_prevRKey = rNow;
 
+	if (level1_messageTimer > 0) level1_messageTimer--;
+
 	if (level1_isPaused || level1_state == L1_RESULT || level1_state == L1_GAME_OVER) return;
 
 	switch (level1_state) {
 
 	case L1_RUNNING:
 		level1_isMoving = false;
-		if (isSpecialKeyPressed(GLUT_KEY_RIGHT)) {
+
+		if (!level1_isJumping && isSpecialKeyPressed(GLUT_KEY_DOWN)) {
+			level1_isSliding = true;
+			level1_slideTimer = LEVEL1_SLIDE_DURATION;
+			level1_playerWidth = LEVEL1_PLAYER_SLIDE_W;
+			level1_playerHeight = LEVEL1_PLAYER_SLIDE_H;
+		}
+
+		if (level1_isSliding) {
+			level1_slideTimer--;
+			if (level1_slideTimer <= 0) {
+				level1_isSliding = false;
+				level1_playerWidth = LEVEL1_PLAYER_NORMAL_W;
+				level1_playerHeight = LEVEL1_PLAYER_NORMAL_H;
+			}
+		}
+
+		if (isSpecialKeyPressed(GLUT_KEY_RIGHT) || level1_isSliding) {
 			level1_isMoving = true;
 			level1_bgX -= level1_playerSpeed;
 			if (level1_bgX <= -SCREEN_WIDTH) level1_bgX = 0;
@@ -1118,7 +1184,7 @@ inline void level1_fixedUpdate()
 				level1_state = L1_DOOR_SELECT;
 			}
 		}
-		else if (isSpecialKeyPressed(GLUT_KEY_LEFT) && level1_distanceCovered > 0) {
+		else if (!level1_isSliding && isSpecialKeyPressed(GLUT_KEY_LEFT) && level1_distanceCovered > 0) {
 			level1_isMoving = true;
 			level1_bgX += level1_playerSpeed;
 			if (level1_bgX >= SCREEN_WIDTH) level1_bgX = 0;
@@ -1126,13 +1192,27 @@ inline void level1_fixedUpdate()
 			if (level1_distanceCovered < 0) level1_distanceCovered = 0;
 		}
 
-		if (level1_isMoving) {
+		// Key collection logic
+		for (int i = 0; i < LEVEL1_NUM_KEYS; i++) {
+			if (level1_collectibleKeys[i].collected) continue;
+
+			float screenKeyX = (float)(level1_collectibleKeys[i].trackPos - level1_distanceCovered + 100);
+
+			if (level1_rectOverlap(screenKeyX, level1_collectibleKeys[i].y, level1_collectibleKeys[i].size, level1_collectibleKeys[i].size,
+				(float)level1_playerX, (float)level1_playerY, level1_playerWidth, level1_playerHeight)) {
+				level1_collectibleKeys[i].collected = true;
+				level1_keyCollected[level1_collectibleKeys[i].id] = true;
+				level1_updateScore(150);
+				level1_playPlusPointSound();
+			}
+		}
+
+		if (level1_isMoving && !level1_isSliding) {
 			level1_animTimer++;
 			if (level1_animTimer >= ANIM_FRAME_DELAY) {
 				level1_animTimer = 0;
 				level1_animFrame = (level1_animFrame + 1) % 8;
 			}
-			level1_updateCacti();
 		}
 
 		level1_updateJumpPhysics();
@@ -1233,6 +1313,16 @@ inline void handleLevel1DoorClicks(int mx, int my)
 	if (level1_state == L1_DOOR_SELECT) {
 		for (int i = 0; i < 3; i++) {
 			if (!level1_doors[i].visited && level1_isInside(mx, my, level1_doors[i])) {
+
+				// CHECK IF MATCHING KEY HAS BEEN COLLECTED
+				int reqKey = level1_doors[i].requiredKeyId;
+				if (!level1_keyCollected[reqKey]) {
+					strcpy_s(level1_message, sizeof(level1_message), "You haven't collected this door's matching key yet!");
+					level1_messageTimer = 70;
+					level1_playNegPointSound();
+					return;
+				}
+
 				level1_chosenPath = i;
 				if (i == level1_correctPath) {
 					level1_doors[i].visited = true;
