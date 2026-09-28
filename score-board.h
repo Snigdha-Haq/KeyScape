@@ -15,7 +15,7 @@
 extern int gameState;
 extern int level1_highScore;
 extern int level2_highScore;
-extern int level3_highScore; // Level 3 এর highscore লিংক করা হলো
+extern int level3_highScore; 
 extern bool isSoundMuted;
 
 // ---------------- MENU SETTINGS UI CONSTANTS ----------------

@@ -46,7 +46,7 @@ inline void renderCreditPage() {
 		if (btnSoundOff < 0) btnSoundOff = iLoadImage("soundOff.png");
 	}
 
-	// 1. Background Image (কোনো টেক্সট ছাড়া)
+	// 1. Background Image
 	iShowImage(0, 0, 1000, 600, creditBgImg);
 
 	// 2. Back Button
