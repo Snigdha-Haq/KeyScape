@@ -98,8 +98,8 @@ Note: keep the `Image` and `Audios` folders in the project folder so all picture
 <img src="Image/level3.png" width="200" height="200">
 
 ## Youtube Link
-[CSE 1200 Project: KeyScape](ADD_YOUTUBE_LINK_HERE)
+[CSE 1200 Project: KeyScape](https://youtu.be/_KqeHvCEo0U)
 
 ## Project Report
-[Project Report: KeyScape](ADD_REPORT_LINK_HERE)
+[Project Report: KeyScape](./KeyScape_Project_Final_Report.pdf)
 
